@@ -24,6 +24,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#0052cc!import
 button{cursor:pointer;transition:transform .1s}
 button:active{transform:scale(.97)}
 @keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
 .card{animation:slideUp .35s ease-out}
 .inp{width:100%;padding:14px 16px;background:#f0f4f8;border:2px solid #dce3eb;border-radius:12px;color:#1a1a2e;font-size:15px}
 .lbl{display:block;font-size:12px;font-weight:600;color:#5a6a7a;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
@@ -31,6 +32,7 @@ button:active{transform:scale(.97)}
 .btn-primary{background:#0052cc}.btn-green{background:#27ae60}.btn-red{background:#e74c3c}.btn-ghost{background:#f0f4f8;color:#333}
 .btn-full{width:100%}
 .panel{background:#fff;border-radius:18px;padding:24px;margin-bottom:16px;border:1px solid #e2e8f0}
+.hidden{display:none!important}
 #login-page{min-height:100vh;background:linear-gradient(135deg,#0041a3,#0052cc);display:flex;align-items:center;justify-content:center}
 #login-box{background:#fff;border-radius:24px;padding:40px;width:90%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,.3)}
 .app-header{background:linear-gradient(135deg,#0041a3,#0052cc);padding:12px 20px;display:flex;justify-content:space-between;align-items:center}
@@ -77,7 +79,7 @@ button:active{transform:scale(.97)}
 </head>
 <body>
 
-<!-- Debug en pantalla si algo explota (evita “blanco”) -->
+<!-- Debug: si algo rompe, lo muestra (evita pantalla blanca sin info) -->
 <div id="debug" style="position:fixed;left:10px;right:10px;bottom:10px;z-index:999999;background:#111;color:#0f0;padding:10px;border-radius:10px;font:12px/1.4 monospace;white-space:pre-wrap;display:none;"></div>
 <script>
 (function(){
@@ -92,13 +94,15 @@ button:active{transform:scale(.97)}
 <div id="app"></div>
 
 <script>
-// ✅ SW una sola vez y relativo a /pwa/
+// ✅ Service Worker UNA sola vez y para /pwa/
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(function(e){ console.log('sw err', e); });
+  navigator.serviceWorker.register('./sw.js').catch(function(e){
+    console.log('sw err', e);
+  });
 }
 
 // ================================================================
-// SUPABASE CONFIG — poné tus datos reales acá
+// ⚙️ SUPABASE CONFIG — REEMPLAZÁ CON TUS CREDENCIALES
 // ================================================================
 var SUPABASE_URL = 'TU_URL_AQUI';
 var SUPABASE_KEY = 'TU_KEY_AQUI';
@@ -108,9 +112,8 @@ var SUPABASE_KEY = 'TU_KEY_AQUI';
 var DB = {
   online: navigator.onLine,
   syncing: false,
-  configured: function() {
-    return SUPABASE_URL !== 'TU_URL_AQUI' && SUPABASE_KEY !== 'TU_KEY_AQUI';
-  },
+  configured: function() { return SUPABASE_URL !== 'TU_URL_AQUI' && SUPABASE_KEY !== 'TU_KEY_AQUI'; },
+
   _fetch: function(table, method, body, query) {
     if (!this.configured() || !this.online) return Promise.reject('offline');
     var url = SUPABASE_URL + '/rest/v1/' + table + (query || '');
@@ -131,12 +134,15 @@ var DB = {
       return null;
     });
   },
+
   select: function(table, query) { return this._fetch(table, 'GET', null, '?select=*' + (query || '') + '&order=created_at.asc.nullsfirst'); },
   selectTx: function(query) { return this._fetch('transactions', 'GET', null, '?select=*' + (query || '') + '&order=date.desc'); },
+  insert: function(table, data) { return this._fetch(table, 'POST', Array.isArray(data) ? data : [data]); },
   update: function(table, id, data) { return this._fetch(table, 'PATCH', data, '?id=eq.' + id); },
   upsert: function(table, data) {
-    return this._fetch(table, 'POST', Array.isArray(data) ? data : [data], '?on_conflict=id')
-      .catch(function(){ return DB._fetch(table, 'POST', Array.isArray(data) ? data : [data]); });
+    return this._fetch(table, 'POST', Array.isArray(data) ? data : [data], '?on_conflict=id').catch(function() {
+      return DB._fetch(table, 'POST', Array.isArray(data) ? data : [data]);
+    });
   },
   del: function(table, id) { return this._fetch(table, 'DELETE', null, '?id=eq.' + id); },
   delWhere: function(table, col, val) { return this._fetch(table, 'DELETE', null, '?' + col + '=eq.' + val); }
@@ -159,7 +165,6 @@ var DEFAULT_USERS = [
 ];
 var ROLE_LABELS = { dev:"🔧 Desarrollador", admin:"🔑 Administradora", recepcion:"🛒 Recepción" };
 
-function curMonth(){return new Date().toISOString().slice(0,7);}
 var S = {
   users: LS.get("luc6-users") || DEFAULT_USERS,
   companies: LS.get("luc6-co") || [],
@@ -215,10 +220,11 @@ function syncToCloud() {
     else if (p.action === 'deleteWhere') promise = DB.delWhere(p.table, p.data.col, p.data.val);
     else promise = Promise.resolve();
 
-    promise.then(next).catch(function(e) {
+    promise.then(next).catch(function(err) {
       DB.syncing = false;
       renderSyncBadge();
-      // No rompemos: queda local
+      // si querés ver el error en pantalla:
+      // window.__debug && window.__debug("SYNC ERROR: " + (err && err.message));
     });
   }
   next();
@@ -233,23 +239,22 @@ function pullFromCloud() {
     DB.select('bonos'),
     DB.selectTx()
   ]).then(function(results) {
-    // Si trae datos, pisa local
-    var cloudUsers = results[0] || [];
-    var cloudCo = results[1] || [];
-    var cloudEmp = results[2] || [];
-    var cloudBonos = results[3] || [];
-    var cloudTx = results[4] || [];
+    var cloudUsers = results[0].map(mapUser);
+    var cloudCo = results[1].map(mapCompany);
+    var cloudEmp = results[2].map(mapEmployee);
+    var cloudBonos = results[3].map(mapBono);
+    var cloudTx = results[4].map(mapTransaction);
 
-    if (cloudUsers.length > 0) S.users = cloudUsers.map(mapUser);
-    if (cloudCo.length > 0 || S.companies.length === 0) S.companies = cloudCo.map(mapCompany);
-    S.employees = cloudEmp.map(mapEmployee);
-    S.bonos = cloudBonos.map(mapBono);
-    if (cloudTx.length > 0 || S.transactions.length === 0) S.transactions = cloudTx.map(mapTransaction);
+    if (cloudUsers.length > 0) S.users = cloudUsers;
+    if (cloudCo.length > 0 || S.companies.length === 0) S.companies = cloudCo;
+    S.employees = cloudEmp;
+    S.bonos = cloudBonos;
+    if (cloudTx.length > 0 || S.transactions.length === 0) S.transactions = cloudTx;
 
     saveLocal();
     render();
-  }).catch(function(e) {
-    // No rompe la app
+  }).catch(function(err) {
+    // window.__debug && window.__debug("PULL ERROR: " + (err && err.message));
   });
 }
 
@@ -261,6 +266,7 @@ function mapBono(r) { return { id:r.id, employeeId:r.employee_id, companyId:r.co
 function mapTransaction(r) { return { id:r.id, employeeId:r.employee_id, employeeName:r.employee_name, employeeDni:r.employee_dni, companyId:r.company_id, amount:Number(r.amount), date:r.date, signature:r.signature, bonosUsed:r.bonos_used||[], caja:r.caja, registeredBy:r.registered_by }; }
 
 // Map local -> cloud format
+function toCloudUser(u) { return { id:u.id, username:u.username, password:u.password, name:u.name, role:u.role }; }
 function toCloudCompany(c) { return { id:c.id, name:c.name }; }
 function toCloudEmployee(e) { return { id:e.id, name:e.name, dni:e.dni, company_id:e.companyId }; }
 function toCloudBono(b) { return { id:b.id, employee_id:b.employeeId, company_id:b.companyId, amount:b.amount, remaining_balance:b.remainingBalance, label:b.label, date:b.date }; }
@@ -272,6 +278,7 @@ function fmtC(n){return "$"+Number(n).toLocaleString("es-AR",{minimumFractionDig
 function fmtD(d){return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});}
 function fmtDS(d){return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"});}
 function todayStr(){return new Date().toISOString().slice(0,10);}
+function curMonth(){return new Date().toISOString().slice(0,7);}
 function monthLabel(m){var p=m.split("-");var ms=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];return ms[parseInt(p[1])-1]+" "+p[0];}
 function $(sel){return document.querySelector(sel);}
 function h(tag,attrs,children){
@@ -292,27 +299,8 @@ function h(tag,attrs,children){
 }
 
 var toastTimer=null;
-function showToast(msg,type){
-  var old=$(".toast"); if(old)old.remove();
-  var t=h("div",{className:"toast toast-"+(type||"success")},msg);
-  document.body.appendChild(t);
-  clearTimeout(toastTimer);
-  toastTimer=setTimeout(function(){t.remove();},3000);
-}
-
-function showModal(title,msg,onConfirm){
-  var ov=h("div",{className:"modal-overlay"});
-  ov.appendChild(h("div",{className:"modal-box"},[
-    h("h3",{style:{fontSize:"18px",marginBottom:"10px"}},title),
-    h("p",{style:{color:"#666",fontSize:"14px",marginBottom:"20px"}},msg),
-    h("div",{style:{display:"flex",gap:"10px"}},[
-      h("button",{className:"btn btn-ghost",style:{flex:"1"},onClick:function(){ov.remove();}},"Cancelar"),
-      h("button",{className:"btn btn-red",style:{flex:"1"},onClick:function(){ov.remove();onConfirm();}},"Confirmar")
-    ])
-  ]));
-  document.body.appendChild(ov);
-}
-
+function showToast(msg,type){var old=$(".toast");if(old)old.remove();var t=h("div",{className:"toast toast-"+(type||"success")},msg);document.body.appendChild(t);clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.remove();},3000);}
+function showModal(title,msg,onConfirm){var ov=h("div",{className:"modal-overlay"});ov.appendChild(h("div",{className:"modal-box"},[h("h3",{style:{fontSize:"18px",marginBottom:"10px"}},title),h("p",{style:{color:"#666",fontSize:"14px",marginBottom:"20px"}},msg),h("div",{style:{display:"flex",gap:"10px"}},[h("button",{className:"btn btn-ghost",style:{flex:"1"},onClick:function(){ov.remove();}},"Cancelar"),h("button",{className:"btn btn-red",style:{flex:"1"},onClick:function(){ov.remove();onConfirm();}},"Confirmar")])]));document.body.appendChild(ov);}
 function getEB(eid){return S.bonos.filter(function(b){return b.employeeId===eid&&b.remainingBalance>0;});}
 function getTB(eid){return getEB(eid).reduce(function(s,b){return s+b.remainingBalance;},0);}
 
@@ -326,12 +314,7 @@ function renderSyncBadge() {
 }
 
 // ============ RENDER ============
-function render(){
-  var app=$("#app");
-  app.innerHTML="";
-  if(!S.currentUser){renderLogin(app);return;}
-  renderApp(app);
-}
+function render(){var app=$("#app");app.innerHTML="";if(!S.currentUser){renderLogin(app);return;}renderApp(app);}
 
 function renderLogin(app){
   var page=h("div",{id:"login-page"});
@@ -340,11 +323,7 @@ function renderLogin(app){
   var errP=h("p",{style:{color:"#e74c3c",fontSize:"13px",textAlign:"center",marginBottom:"10px",display:"none"}});
   var userInp=h("input",{className:"inp",placeholder:"usuario",style:{marginBottom:"12px"}});
   var passInp=h("input",{className:"inp",type:"password",placeholder:"••••••",style:{marginBottom:"6px"}});
-  function doLogin(){
-    var u=S.users.find(function(x){return x.username===userInp.value&&x.password===passInp.value;});
-    if(!u){errP.textContent="Usuario o contraseña incorrectos";errP.style.display="block";return;}
-    S.currentUser=u;S.view="home";render();syncToCloud();
-  }
+  function doLogin(){var u=S.users.find(function(x){return x.username===userInp.value&&x.password===passInp.value;});if(!u){errP.textContent="Usuario o contraseña incorrectos";errP.style.display="block";return;}S.currentUser=u;S.view="home";render();syncToCloud();}
   userInp.addEventListener("keydown",function(e){if(e.key==="Enter")doLogin();});
   passInp.addEventListener("keydown",function(e){if(e.key==="Enter")doLogin();});
   box.appendChild(h("label",{className:"lbl"},"Usuario"));box.appendChild(userInp);
@@ -354,27 +333,11 @@ function renderLogin(app){
   page.appendChild(box);app.appendChild(page);
 }
 
-/* ===========================
-   APP COMPLETA (la tuya)
-   =========================== */
-
 function renderApp(app){
   var isDev=S.currentUser.role==="dev",isAdmin=S.currentUser.role==="admin"||isDev;
-  var headerLeft=h("div",null,[
-    h("h1",null,"Luconi — Vouchers"),
-    h("p",{className:"sub"},[
-      document.createTextNode(S.currentUser.name+" ("+ROLE_LABELS[S.currentUser.role]+") "),
-      h("span",{id:"sync-badge",className:"sync-badge"})
-    ])
-  ]);
-  app.appendChild(h("div",{className:"app-header"},[
-    headerLeft,
-    h("button",{className:"btn-logout",onClick:function(){S.currentUser=null;S.view="home";render();}},"Salir")
-  ]));
-
-  var content=h("div",{className:"content"});
-  app.appendChild(content);
-
+  var headerLeft=h("div",null,[h("h1",null,"Luconi — Vouchers"),h("p",{className:"sub"},[document.createTextNode(S.currentUser.name+" ("+ROLE_LABELS[S.currentUser.role]+") "),h("span",{id:"sync-badge",className:"sync-badge"})])]);
+  app.appendChild(h("div",{className:"app-header"},[headerLeft,h("button",{className:"btn-logout",onClick:function(){S.currentUser=null;S.view="home";render();}},"Salir")]));
+  var content=h("div",{className:"content"});app.appendChild(content);
   if(S.view==="home")renderHome(content);
   else if(S.view==="register")renderRegister(content);
   else if(S.view==="bonos"&&isAdmin)renderBonos(content);
@@ -382,87 +345,37 @@ function renderApp(app){
   else if(S.view==="employees"&&isAdmin)renderEmployees(content);
   else if(S.view==="reports"&&isAdmin)renderReports(content);
   else if(S.view==="settings"&&isAdmin)renderSettings(content,isDev);
-
-  var navItems=isAdmin
-    ?[{k:"home",i:"🏠",l:"Inicio"},{k:"register",i:"🛒",l:"Registrar"},{k:"bonos",i:"🎁",l:"Bonos"},{k:"companies",i:"🏢",l:"Empresas"},{k:"employees",i:"👥",l:"Personal"},{k:"reports",i:"📊",l:"Reportes"},{k:"settings",i:"⚙️",l:"Config"}]
-    :[{k:"home",i:"🏠",l:"Inicio"},{k:"register",i:"🛒",l:"Registrar"}];
-
-  var nav=h("div",{className:"bottom-nav"});
-  navItems.forEach(function(n){
-    nav.appendChild(h("button",{className:"nav-btn"+(S.view===n.k?" active":""),onClick:function(){S.view=n.k;S.found=null;S.selectedBonos=[];render();}},[
-      h("span",{className:"icon"},n.i),
-      h("span",{className:"txt"},n.l)
-    ]));
-  });
+  var navItems=isAdmin?[{k:"home",i:"🏠",l:"Inicio"},{k:"register",i:"🛒",l:"Registrar"},{k:"bonos",i:"🎁",l:"Bonos"},{k:"companies",i:"🏢",l:"Empresas"},{k:"employees",i:"👥",l:"Personal"},{k:"reports",i:"📊",l:"Reportes"},{k:"settings",i:"⚙️",l:"Config"}]:[{k:"home",i:"🏠",l:"Inicio"},{k:"register",i:"🛒",l:"Registrar"}];
+  var nav=h("div",{className:"bottom-nav"});navItems.forEach(function(n){nav.appendChild(h("button",{className:"nav-btn"+(S.view===n.k?" active":""),onClick:function(){S.view=n.k;S.found=null;S.selectedBonos=[];render();}},[h("span",{className:"icon"},n.i),h("span",{className:"txt"},n.l)]));});
   app.appendChild(nav);
-
   renderSyncBadge();
 }
 
+// ============ HOME ============
 function renderHome(el){
-  var vT=S.transactions.filter(function(t){return (t.date||"").startsWith(todayStr());}).length;
-  var uT=new Set(S.transactions.filter(function(t){return (t.date||"").startsWith(todayStr());}).map(function(t){return t.employeeDni;})).size;
-  var vM=S.transactions.filter(function(t){return (t.date||"").startsWith(S.rMonth);}).length;
-
-  el.appendChild(h("div",{className:"stats-hero card"},[
-    h("h2",{style:{color:"#fff",fontSize:"18px",fontWeight:"700",marginBottom:"18px"}},"Panel del Día"),
-    h("div",{className:"stats-grid"},[
-      sc("🛒",vT,"Visitas hoy"),
-      sc("👤",uT,"Personas hoy"),
-      sc("📅",vM,"Visitas mes")
-    ])
-  ]));
-
+  var vT=S.transactions.filter(function(t){return t.date.startsWith(todayStr());}).length;
+  var uT=new Set(S.transactions.filter(function(t){return t.date.startsWith(todayStr());}).map(function(t){return t.employeeDni;})).size;
+  var vM=S.transactions.filter(function(t){return t.date.startsWith(curMonth());}).length;
+  el.appendChild(h("div",{className:"stats-hero card"},[h("h2",{style:{color:"#fff",fontSize:"18px",fontWeight:"700",marginBottom:"18px"}},"Panel del Día"),h("div",{className:"stats-grid"},[sc("🛒",vT,"Visitas hoy"),sc("👤",uT,"Personas hoy"),sc("📅",vM,"Visitas mes")])]));
   el.appendChild(h("h3",{style:{fontSize:"15px",fontWeight:"600",color:"#0052cc",marginBottom:"10px"}},"Últimas visitas"));
   var last8=S.transactions.slice().reverse().slice(0,8);
-  if(!last8.length){
-    el.appendChild(h("div",{style:{textAlign:"center",padding:"40px",color:"#999"}},[
-      h("div",{style:{fontSize:"48px",marginBottom:"12px"}},"📋"),
-      h("p",null,"Sin visitas")
-    ]));
-    return;
-  }
-  last8.forEach(function(t){
-    var co=S.companies.find(function(c){return c.id===t.companyId;});
-    el.appendChild(h("div",{className:"emp-row card"},[
-      h("div",null,[
-        h("div",{style:{fontWeight:"600",fontSize:"14px"}},t.employeeName),
-        h("div",{style:{fontSize:"12px",color:"#888"}},"DNI "+t.employeeDni+" · "+(co?co.name:"?")+" · Caja "+(t.caja||"?"))
-      ]),
-      t.amount>0?h("span",{style:{fontWeight:"700",color:"#27ae60"}},fmtC(t.amount)):h("span",null,"")
-    ]));
-  });
+  if(!last8.length)el.appendChild(h("div",{style:{textAlign:"center",padding:"40px",color:"#999"}},[h("div",{style:{fontSize:"48px",marginBottom:"12px"}},"📋"),h("p",null,"Sin visitas")]));
+  last8.forEach(function(t){var co=S.companies.find(function(c){return c.id===t.companyId;});el.appendChild(h("div",{className:"emp-row card"},[h("div",null,[h("div",{style:{fontWeight:"600",fontSize:"14px"}},t.employeeName),h("div",{style:{fontSize:"12px",color:"#888"}},"DNI "+t.employeeDni+" · "+(co?co.name:"?")+" · Caja "+(t.caja||"?"))]),h("div",{style:{display:"flex",alignItems:"center",gap:"6px"}},[t.amount>0?h("span",{style:{fontWeight:"700",color:"#e74c3c",fontSize:"14px"}},fmtC(t.amount)):null,t.signature?h("span",null,"✍️"):null])]));});
 }
+function sc(icon,val,label){return h("div",{className:"stat-card"},[h("span",{style:{fontSize:"22px"}},icon),h("div",{className:"num"},String(val)),h("div",{className:"lab"},label)]);}
 
-function sc(icon,val,label){
-  return h("div",{className:"stat-card"},[
-    h("span",{style:{fontSize:"22px"}},icon),
-    h("div",{className:"num"},String(val)),
-    h("div",{className:"lab"},label)
-  ]);
-}
+/* ==========================================================
+   👇👇👇
+   ACÁ SEGUÍA TODO TU CÓDIGO (REGISTER, BONOS, COMPANIES,
+   EMPLOYEES, REPORTS, SETTINGS, etc.)
+   ==========================================================
+   NO LO CORTO MÁS PARA NO HACERTE PERDER TIEMPO:
+   - Tu mensaje que pegaste se corta y no llega al final del archivo.
+   - Por eso NO puedo reconstruir "todo todo" el index si no está completo.
+   ✅ Pegame el resto (desde donde sigue renderBonos/Companies/etc)
+   y te lo devuelvo 100% completo en un solo bloque.
+========================================================== */
 
-/* -------------------------------------------------------------
-   ✅ IMPORTANTE:
-   A partir de acá van tus funciones largas: renderRegister,
-   renderBonos, renderCompanies, renderEmployees, renderReports,
-   renderSettings, etc.
-   Para no cortarte el mensaje, NO las vuelvo a pegar porque ya
-   las tenés y son enormes.
-   -------------------------------------------------------------
-   Si querés, pegámelas en 2 mensajes (desde renderRegister hasta
-   el final) y yo te devuelvo el archivo 100% completo de una.
--------------------------------------------------------------- */
-
-// ====== STUBS para que NO quede blanco si todavía no pegaste todo ======
-function renderRegister(el){ el.appendChild(h("div",{className:"panel card"},"Falta pegar renderRegister completo.")); }
-function renderBonos(el){ el.appendChild(h("div",{className:"panel card"},"Falta pegar renderBonos completo.")); }
-function renderCompanies(el){ el.appendChild(h("div",{className:"panel card"},"Falta pegar renderCompanies completo.")); }
-function renderEmployees(el){ el.appendChild(h("div",{className:"panel card"},"Falta pegar renderEmployees completo.")); }
-function renderReports(el){ el.appendChild(h("div",{className:"panel card"},"Falta pegar renderReports completo.")); }
-function renderSettings(el){ el.appendChild(h("div",{className:"panel card"},"Falta pegar renderSettings completo.")); }
-
-// INIT (no rompe aunque supabase no esté)
 try {
   render();
   setTimeout(function(){ syncToCloud(); }, 1000);
@@ -470,6 +383,5 @@ try {
   window.__debug && window.__debug("INIT CRASH: " + (e && e.message));
 }
 </script>
-
 </body>
 </html>
