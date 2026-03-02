@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <meta name="theme-color" content="#0041a3">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
 
   <link rel="manifest" href="./manifest.json">
@@ -16,7 +17,7 @@
 
   <title>Luconi Vouchers</title>
 
-  <!-- ✅ SIN defer: así Babel/React/Firebase existen cuando se ejecuta text/babel -->
+  <!-- SIN defer: Babel/React/Firebase existen cuando corre text/babel -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -26,29 +27,58 @@
 
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'DM Sans',-apple-system,sans-serif}
+    body{font-family:'DM Sans',-apple-system,sans-serif;background:#f0f4f8;color:#1a1a2e}
     input,select,textarea{font-family:'DM Sans',sans-serif}
+    button{cursor:pointer}
     button:hover{transform:translateY(-1px)}
     @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
     .card{animation:slideUp .4s ease-out}
     input:focus,select:focus,textarea:focus{outline:none;border-color:#0052cc!important;box-shadow:0 0 0 3px rgba(0,82,204,.15)}
   </style>
 </head>
 
 <body>
+
+  <!-- Debug overlay -->
+  <div id="debug"
+       style="position:fixed;left:10px;right:10px;bottom:10px;z-index:999999;
+              background:#111;color:#0f0;padding:10px;border-radius:10px;
+              font:12px/1.4 monospace;white-space:pre-wrap;display:none;"></div>
+
+  <script>
+    (function(){
+      var d = document.getElementById('debug');
+      function show(msg){
+        d.style.display = 'block';
+        d.textContent = String(msg);
+      }
+      window.__debug = function(msg){
+        show(msg);
+        try { console.log(msg); } catch(e) {}
+      };
+      window.addEventListener('error', function(e){
+        show('JS ERROR: ' + (e.message || e.error) + '\n' + (e.filename||'') + ':' + (e.lineno||'') );
+      });
+      window.addEventListener('unhandledrejection', function(e){
+        show('PROMISE ERROR: ' + (e.reason && (e.reason.message || e.reason)) );
+      });
+    })();
+  </script>
+
   <div id="root" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
     Cargando…
   </div>
   <noscript>Necesitás habilitar JavaScript para usar esta app.</noscript>
 
   <script>
-    // ✅ SW con scope /pwa/
+    // SW con scope /pwa/
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(function(e){ console.log('sw err', e); });
+      navigator.serviceWorker.register('./sw.js').catch(function(e){
+        console.log('sw err', e);
+      });
     }
 
-    // ✅ Firebase init ANTES de la App
+    // Firebase init ANTES de la App
     firebase.initializeApp({
       apiKey: "AIzaSyBuii4cGIR_6j8DQucQf-hhcwkq7hMTMrk",
       authDomain: "voucer-luconi.firebaseapp.com",
@@ -59,25 +89,155 @@
       measurementId: "G-6KT86PVH3E"
     });
 
-    // ✅ db disponible ya mismo
     window.db = firebase.firestore();
-
-    // offline cache (si falla no rompe)
     try { window.db.enablePersistence().catch(function(){}); } catch(e) {}
+
+    window.__debug && window.__debug("Boot OK ✅ | db=" + (!!window.db));
   </script>
 
   <script type="text/babel">
     var { useState, useEffect, useRef, useCallback } = React;
-
-    // ✅ ahora SI existe
     var db = window.db;
 
-    // --- PEGÁ ACÁ TODO TU CÓDIGO COMPLETO DE LA APP (tal cual lo tenías) ---
-    // (BS, DEFAULT_USERS, SignaturePad, App(), etc.)
-    //
-    // Importante: al final dejá esto:
-    //
-    //  ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+    window.__debug && window.__debug("Babel OK ✅ | React OK=" + (!!React) + " | db=" + (!!db));
+
+    // Styles helpers (simples)
+    var BS=function(bg,col){return{background:bg,color:col,border:"none",borderRadius:12,padding:"12px 16px",fontWeight:700,cursor:"pointer"};};
+    var IS={width:"100%",padding:"14px 16px",background:"#f0f4f8",border:"2px solid #dce3eb",borderRadius:12,color:"#1a1a2e",fontSize:15};
+    var LS={display:"block",fontSize:12,fontWeight:700,color:"#5a6a7a",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5};
+
+    // Usuarios default (igual a tu idea original)
+    var DEFAULT_USERS=[
+      {id:"dev1",username:"developer",password:"dev2024",name:"Desarrollador",role:"dev"},
+      {id:"admin1",username:"admin",password:"admin123",name:"Administradora",role:"admin"},
+      {id:"recep1",username:"recepcion",password:"recep123",name:"Recepcionista",role:"recepcion"}
+    ];
+
+    // Hook Firestore robusto + debug
+    function useFirestore(collection, defVal) {
+      var [data, setData] = useState(defVal);
+      var [loaded, setLoaded] = useState(false);
+
+      useEffect(function() {
+        var ref = db.collection(collection).doc("main");
+
+        var unsub = ref.onSnapshot(function(doc) {
+          if (doc.exists) {
+            setData(doc.data().items || defVal);
+          } else {
+            ref.set({ items: defVal }, { merge: true }).catch(function(e){
+              console.error("seed", collection, e);
+              window.__debug && window.__debug("seed ERROR " + collection + ": " + (e && e.message));
+            });
+            setData(defVal);
+          }
+          setLoaded(true);
+        }, function(err) {
+          console.error(collection, err);
+          window.__debug && window.__debug("Firestore ERROR en " + collection + ": " + (err && err.message));
+          setLoaded(true);
+        });
+
+        return unsub;
+      }, [collection]);
+
+      var save = useCallback(function(fn) {
+        setData(function(prev) {
+          var next = typeof fn === "function" ? fn(prev) : fn;
+          db.collection(collection).doc("main").set({ items: next }, { merge: true })
+            .catch(function(e){
+              console.error("save", collection, e);
+              window.__debug && window.__debug("save ERROR " + collection + ": " + (e && e.message));
+            });
+          return next;
+        });
+      }, [collection]);
+
+      return [data, save, loaded];
+    }
+
+    // ======= APP BASE (NO SE CLAVA) =======
+    function App(){
+      // Solo users para mostrar login rápido
+      var [users,setUsers,uL] = useFirestore("users", DEFAULT_USERS);
+
+      var [currentUser,setCurrentUser] = useState(null);
+      var [loginUser,setLoginUser] = useState("");
+      var [loginPass,setLoginPass] = useState("");
+      var [loginError,setLoginError] = useState("");
+
+      if(!uL){
+        return (
+          <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#0041a3,#0052cc)"}}>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:48,marginBottom:12}}>🛒</div>
+              <p style={{color:"#fff",fontSize:18}}>Conectando...</p>
+              <p style={{color:"rgba(255,255,255,.65)",fontSize:12,marginTop:8}}>Cargando usuarios</p>
+            </div>
+          </div>
+        );
+      }
+
+      function doLogin(){
+        var u = (users||[]).find(function(x){ return x.username===loginUser && x.password===loginPass; });
+        if(!u){ setLoginError("Usuario o contraseña incorrectos"); return; }
+        setCurrentUser(u);
+        setLoginUser(""); setLoginPass(""); setLoginError("");
+      }
+
+      function doLogout(){
+        setCurrentUser(null);
+      }
+
+      if(!currentUser){
+        return (
+          <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0041a3,#0052cc)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <div style={{background:"#fff",borderRadius:24,padding:36,width:"92%",maxWidth:380,boxShadow:"0 30px 80px rgba(0,0,0,.3)"}}>
+              <div style={{textAlign:"center",marginBottom:20}}>
+                <div style={{fontSize:40,marginBottom:6}}>🛒</div>
+                <h1 style={{fontSize:24,color:"#0041a3",fontWeight:800}}>Luconi</h1>
+                <p style={{fontSize:13,color:"#888",marginTop:4}}>Sistema de Vouchers</p>
+              </div>
+
+              <label style={LS}>Usuario</label>
+              <input value={loginUser} onChange={function(e){setLoginUser(e.target.value);}} style={{...IS,marginBottom:12}} />
+
+              <label style={LS}>Contraseña</label>
+              <input type="password" value={loginPass} onChange={function(e){setLoginPass(e.target.value);}} style={{...IS,marginBottom:10}} />
+
+              {loginError && <div style={{color:"#e74c3c",fontSize:13,textAlign:"center",marginBottom:10}}>{loginError}</div>}
+
+              <button onClick={doLogin} style={{...BS("#0052cc","#fff"),width:"100%",padding:14,fontSize:16}}>Ingresar</button>
+
+              <div style={{marginTop:14,fontSize:11,color:"#777",textAlign:"center"}}>
+                Si queda cargando, mirá el recuadro verde abajo (debug).
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ========= TU APP REAL =========
+      // Acá es donde pegás tu UI grande (home/register/bonos/etc).
+      // Por ahora dejo una pantalla simple para confirmar que entra.
+
+      return (
+        <div style={{minHeight:"100vh",padding:20}}>
+          <div className="card" style={{maxWidth:520,margin:"0 auto"}}>
+            <h2 style={{fontSize:18,fontWeight:800,marginBottom:6}}>✅ App cargó</h2>
+            <div style={{color:"#666",marginBottom:16}}>Usuario: <b>{currentUser.name}</b></div>
+
+            <button onClick={doLogout} style={{...BS("#e74c3c","#fff"),width:"100%"}}>Salir</button>
+
+            <div style={{marginTop:14,fontSize:12,color:"#333"}}>
+              Ahora pegá tu App completa acá adentro (donde dice “TU APP REAL”).
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
   </script>
 </body>
 </html>
