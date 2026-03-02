@@ -1,5 +1,5 @@
-// luconi sw.js — v6 (subfolder-safe para /pwa/)
-var CACHE = 'luconi-pwa-v6';
+// luconi sw.js — v7 (subfolder-safe para /pwa/) ✅ FIX illegal invocation
+var CACHE = 'luconi-pwa-v7';
 var BASE = self.registration.scope; // ej: https://.../pwa/
 
 function U(path) { return new URL(path, BASE).toString(); }
@@ -25,9 +25,11 @@ var CDN_ASSETS = [
 self.addEventListener('install', function (e) {
   e.waitUntil((async function () {
     var c = await caches.open(CACHE);
+
+    // App shell
     await c.addAll(APP_SHELL);
 
-    // No rompas el install si el CDN no deja cachear
+    // CDN cache best-effort (no romper install si falla)
     await Promise.all(CDN_ASSETS.map(async function (url) {
       try {
         var res = await fetch(url, { mode: 'no-cors' });
@@ -35,13 +37,18 @@ self.addEventListener('install', function (e) {
       } catch (_) {}
     }));
   })());
+
   self.skipWaiting();
 });
 
 self.addEventListener('activate', function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(caches.delete));
+      return Promise.all(
+        keys
+          .filter(function (k) { return k !== CACHE; })
+          .map(function (k) { return caches.delete(k); }) // ✅ FIX: no usar .map(caches.delete)
+      );
     })
   );
   self.clients.claim();
@@ -55,13 +62,15 @@ self.addEventListener('fetch', function (e) {
   // HTML: network-first + fallback al index de /pwa/
   if (isHTML) {
     e.respondWith(
-      fetch(req).then(function (res) {
-        var copy = res.clone();
-        caches.open(CACHE).then(function (c) { c.put(U('./index.html'), copy); });
-        return res;
-      }).catch(function () {
-        return caches.match(U('./index.html'), { ignoreSearch: true });
-      })
+      fetch(req)
+        .then(function (res) {
+          var copy = res.clone();
+          caches.open(CACHE).then(function (c) { c.put(U('./index.html'), copy); });
+          return res;
+        })
+        .catch(function () {
+          return caches.match(U('./index.html'), { ignoreSearch: true });
+        })
     );
     return;
   }
@@ -71,19 +80,24 @@ self.addEventListener('fetch', function (e) {
     caches.match(req).then(function (hit) {
       if (hit) return hit;
 
-      return fetch(req).then(function (res) {
-        var url = new URL(req.url);
-        var sameScope = url.href.startsWith(BASE);
-        var isCDN = CDN_ASSETS.indexOf(req.url) !== -1;
+      return fetch(req)
+        .then(function (res) {
+          try {
+            var url = new URL(req.url);
+            var sameScope = url.href.startsWith(BASE);
+            var isCDN = CDN_ASSETS.indexOf(req.url) !== -1;
 
-        if (sameScope || isCDN) {
-          var copy = res.clone();
-          caches.open(CACHE).then(function (c) { c.put(req, copy); });
-        }
-        return res;
-      }).catch(function () {
-        return caches.match(req);
-      });
+            if (sameScope || isCDN) {
+              var copy = res.clone();
+              caches.open(CACHE).then(function (c) { c.put(req, copy); });
+            }
+          } catch (_) {}
+
+          return res;
+        })
+        .catch(function () {
+          return caches.match(req);
+        });
     })
   );
 });
