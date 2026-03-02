@@ -1,238 +1,368 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <meta name="theme-color" content="#0041a3">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0041a3">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-  <link rel="manifest" href="./manifest.json">
-  <link rel="icon" href="./icon-192.png">
-  <link rel="apple-touch-icon" href="./icon-192.png">
+<!-- ✅ /pwa/ safe -->
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Luconi Vouchers</title>
 
-  <title>Luconi Vouchers</title>
-
-  <!-- SIN defer: Babel/React/Firebase existen cuando corre text/babel -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'DM Sans',-apple-system,sans-serif;background:#f0f4f8;color:#1a1a2e}
-    input,select,textarea{font-family:'DM Sans',sans-serif}
-    button{cursor:pointer}
-    button:hover{transform:translateY(-1px)}
-    @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-    .card{animation:slideUp .4s ease-out}
-    input:focus,select:focus,textarea:focus{outline:none;border-color:#0052cc!important;box-shadow:0 0 0 3px rgba(0,82,204,.15)}
-  </style>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;background:#f0f4f8;color:#1a1a2e;min-height:100vh}
+input,select,textarea,button{font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#0052cc!important;box-shadow:0 0 0 3px rgba(0,82,204,.15)}
+button{cursor:pointer;transition:transform .1s}
+button:active{transform:scale(.97)}
+@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.card{animation:slideUp .35s ease-out}
+.inp{width:100%;padding:14px 16px;background:#f0f4f8;border:2px solid #dce3eb;border-radius:12px;color:#1a1a2e;font-size:15px}
+.lbl{display:block;font-size:12px;font-weight:600;color:#5a6a7a;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.btn{border:none;border-radius:10px;padding:12px 20px;font-weight:600;font-size:14px;color:#fff}
+.btn-primary{background:#0052cc}.btn-green{background:#27ae60}.btn-red{background:#e74c3c}.btn-ghost{background:#f0f4f8;color:#333}
+.btn-full{width:100%}
+.panel{background:#fff;border-radius:18px;padding:24px;margin-bottom:16px;border:1px solid #e2e8f0}
+.hidden{display:none!important}
+#login-page{min-height:100vh;background:linear-gradient(135deg,#0041a3,#0052cc);display:flex;align-items:center;justify-content:center}
+#login-box{background:#fff;border-radius:24px;padding:40px;width:90%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,.3)}
+.app-header{background:linear-gradient(135deg,#0041a3,#0052cc);padding:12px 20px;display:flex;justify-content:space-between;align-items:center}
+.app-header h1{font-size:18px;color:#fff;font-weight:700}
+.app-header .sub{font-size:10px;color:rgba(255,255,255,.6)}
+.app-header .btn-logout{background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.97);backdrop-filter:blur(20px);border-top:1px solid #e2e8f0;padding:6px 4px 12px;display:flex;justify-content:center;gap:1px;z-index:100}
+.nav-btn{background:transparent;border:1px solid transparent;border-radius:12px;padding:6px 9px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.nav-btn.active{background:#eef6ff;border-color:#b3d4fc}
+.nav-btn .icon{font-size:16px}.nav-btn .txt{font-size:8px;font-weight:600;color:#999}
+.nav-btn.active .txt{color:#0052cc}
+.content{max-width:600px;margin:0 auto;padding:20px 16px 100px}
+.stats-hero{background:linear-gradient(135deg,#0052cc,#2684ff);border-radius:20px;padding:28px;margin-bottom:20px}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.stat-card{background:rgba(255,255,255,.15);border-radius:14px;padding:14px 10px;text-align:center}
+.stat-card .num{font-size:26px;font-weight:700;color:#fff;margin-top:4px}
+.stat-card .lab{font-size:11px;color:rgba(255,255,255,.75)}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:1100;padding:14px 28px;border-radius:14px;font-weight:600;font-size:14px;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+.toast-success{background:#27ae60}.toast-error{background:#e74c3c}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1050;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-box{background:#fff;border-radius:20px;padding:28px;max-width:380px;width:100%}
+.ticket-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
+.ticket-box{background:#fff;border-radius:20px;padding:28px;max-width:380px;width:100%}
+.ticket-caja{text-align:center;background:#0041a3;color:#fff;border-radius:14px;padding:16px 20px;margin:16px 0;font-size:28px;font-weight:700}
+.sig-wrap{background:#fff;border-radius:16px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.18)}
+.sig-canvas{width:100%;height:150px;border:2px dashed #ccc;border-radius:10px;cursor:crosshair;touch-action:none;background:#fafafa}
+.info-box{background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:12px;font-size:12px;color:#1e40af;margin-bottom:14px}
+.warn-box{background:#fffbeb;border:1px solid #fbbf24;border-radius:10px;padding:12px;font-size:12px;color:#92400e;line-height:1.5;margin-bottom:14px}
+.danger-zone{margin-top:30px;padding:20px;background:#fef2f2;border-radius:14px;border:2px solid #ef4444}
+.emp-row{background:#fff;border-radius:12px;padding:12px 16px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;border:1px solid #e2e8f0}
+.tx-row{background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:6px;border:1px solid #e2e8f0}
+.sum-card{background:#eef6ff;border-radius:14px;padding:18px;margin-bottom:12px}
+.sum-grid{display:grid;gap:10px}
+.bono-item{display:flex;justify-content:space-between;background:#f8f9fa;border-radius:8px;padding:8px 12px;margin-bottom:4px}
+.bono-check{display:flex;align-items:center;gap:10px;border-radius:10px;padding:10px 14px;margin-bottom:6px;cursor:pointer;border:2px solid #e2e8f0;background:#f8f9fa}
+.bono-check.selected{border-color:#27ae60;background:#d4edda}
+.caja-btn{flex:1;font-size:18px;padding:16px;border:none;border-radius:10px;font-weight:600;cursor:pointer}
+.preforma-hero{background:linear-gradient(135deg,#0052cc,#2684ff);border-radius:18px;padding:24px;margin-bottom:20px}
+.sync-badge{font-size:10px;padding:3px 8px;border-radius:8px;font-weight:600;margin-left:8px}
+.sync-online{background:rgba(39,174,96,.2);color:#27ae60}
+.sync-offline{background:rgba(231,76,60,.2);color:#e74c3c}
+.sync-syncing{background:rgba(241,196,15,.2);color:#f1c40f}
+</style>
 </head>
-
 <body>
 
-  <!-- Debug overlay -->
-  <div id="debug"
-       style="position:fixed;left:10px;right:10px;bottom:10px;z-index:999999;
-              background:#111;color:#0f0;padding:10px;border-radius:10px;
-              font:12px/1.4 monospace;white-space:pre-wrap;display:none;"></div>
+<div id="app"></div>
 
-  <script>
-    (function(){
-      var d = document.getElementById('debug');
-      function show(msg){
-        d.style.display = 'block';
-        d.textContent = String(msg);
+<script>
+// ✅ SOLO UNA VEZ y relativo a /pwa/
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(function(e){ console.log('sw err', e); });
+}
+
+// ================================================================
+// ⚙️ SUPABASE CONFIG — REEMPLAZÁ CON TUS CREDENCIALES
+// ================================================================
+var SUPABASE_URL = 'TU_URL_AQUI';
+var SUPABASE_KEY = 'TU_KEY_AQUI';
+// ================================================================
+
+// ============ SUPABASE CLIENT ============
+var DB = {
+  online: navigator.onLine,
+  syncing: false,
+  configured: function() { return SUPABASE_URL !== 'TU_URL_AQUI' && SUPABASE_KEY !== 'TU_KEY_AQUI'; },
+
+  _fetch: function(table, method, body, query) {
+    if (!this.configured() || !this.online) return Promise.reject('offline');
+    var url = SUPABASE_URL + '/rest/v1/' + table + (query || '');
+    var opts = {
+      method: method || 'GET',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': method === 'POST' ? 'return=representation' : (method === 'PATCH' ? 'return=representation' : '')
       }
-      window.__debug = function(msg){
-        show(msg);
-        try { console.log(msg); } catch(e) {}
-      };
-      window.addEventListener('error', function(e){
-        show('JS ERROR: ' + (e.message || e.error) + '\n' + (e.filename||'') + ':' + (e.lineno||'') );
-      });
-      window.addEventListener('unhandledrejection', function(e){
-        show('PROMISE ERROR: ' + (e.reason && (e.reason.message || e.reason)) );
-      });
-    })();
-  </script>
-
-  <div id="root" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
-    Cargando…
-  </div>
-  <noscript>Necesitás habilitar JavaScript para usar esta app.</noscript>
-
-  <script>
-    // SW con scope /pwa/
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(function(e){
-        console.log('sw err', e);
-      });
-    }
-
-    // Firebase init ANTES de la App
-    firebase.initializeApp({
-      apiKey: "AIzaSyBuii4cGIR_6j8DQucQf-hhcwkq7hMTMrk",
-      authDomain: "voucer-luconi.firebaseapp.com",
-      projectId: "voucer-luconi",
-      storageBucket: "voucer-luconi.firebasestorage.app",
-      messagingSenderId: "565791994023",
-      appId: "1:565791994023:web:934c8469d57b50a2d2eb82",
-      measurementId: "G-6KT86PVH3E"
+    };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch(url, opts).then(function(r) {
+      if (!r.ok) return r.text().then(function(t) { throw new Error(t); });
+      var ct = r.headers.get('content-type');
+      if (ct && ct.indexOf('json') >= 0) return r.json();
+      return null;
     });
+  },
 
-    window.db = firebase.firestore();
-    try { window.db.enablePersistence().catch(function(){}); } catch(e) {}
+  select: function(table, query) { return this._fetch(table, 'GET', null, '?select=*' + (query || '') + '&order=created_at.asc.nullsfirst'); },
+  selectTx: function(query) { return this._fetch('transactions', 'GET', null, '?select=*' + (query || '') + '&order=date.desc'); },
+  insert: function(table, data) { return this._fetch(table, 'POST', Array.isArray(data) ? data : [data]); },
+  update: function(table, id, data) { return this._fetch(table, 'PATCH', data, '?id=eq.' + id); },
+  upsert: function(table, data) {
+    return this._fetch(table, 'POST', Array.isArray(data) ? data : [data], '?on_conflict=id').catch(function() {
+      return DB._fetch(table, 'POST', Array.isArray(data) ? data : [data]);
+    });
+  },
+  del: function(table, id) { return this._fetch(table, 'DELETE', null, '?id=eq.' + id); },
+  delWhere: function(table, col, val) { return this._fetch(table, 'DELETE', null, '?' + col + '=eq.' + val); }
+};
 
-    window.__debug && window.__debug("Boot OK ✅ | db=" + (!!window.db));
-  </script>
+// Track online/offline
+window.addEventListener('online', function() { DB.online = true; syncToCloud(); renderSyncBadge(); });
+window.addEventListener('offline', function() { DB.online = false; renderSyncBadge(); });
 
-  <script type="text/babel">
-    var { useState, useEffect, useRef, useCallback } = React;
-    var db = window.db;
+// ============ LOCAL STORAGE ============
+var LS = {
+  get: function(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch(e) { return null; } },
+  set: function(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} }
+};
 
-    window.__debug && window.__debug("Babel OK ✅ | React OK=" + (!!React) + " | db=" + (!!db));
+// ============ STATE ============
+var DEFAULT_USERS = [
+  { id:"dev1", username:"developer", password:"dev2024", name:"Desarrollador", role:"dev" },
+  { id:"admin1", username:"admin", password:"admin123", name:"Administradora", role:"admin" },
+  { id:"recep1", username:"recepcion", password:"recep123", name:"Recepcionista", role:"recepcion" }
+];
+var ROLE_LABELS = { dev:"🔧 Desarrollador", admin:"🔑 Administradora", recepcion:"🛒 Recepción" };
 
-    // Styles helpers
-    var BS=function(bg,col){return{background:bg,color:col,border:"none",borderRadius:12,padding:"12px 16px",fontWeight:700,cursor:"pointer"};};
-    var IS={width:"100%",padding:"14px 16px",background:"#f0f4f8",border:"2px solid #dce3eb",borderRadius:12,color:"#1a1a2e",fontSize:15};
-    var LS={display:"block",fontSize:12,fontWeight:700,color:"#5a6a7a",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5};
+var S = {
+  users: LS.get("luc6-users") || DEFAULT_USERS,
+  companies: LS.get("luc6-co") || [],
+  employees: LS.get("luc6-emp") || [],
+  bonos: LS.get("luc6-bonos") || [],
+  transactions: LS.get("luc6-tx") || [],
+  currentUser: null,
+  view: "home",
+  found: null,
+  selectedBonos: [],
+  selectedCaja: "1",
+  lastTicket: null,
+  rMonth: curMonth(),
+  rCo: "all",
+  pendingSync: LS.get("luc6-pending") || []
+};
 
-    var DEFAULT_USERS=[
-      {id:"dev1",username:"developer",password:"dev2024",name:"Desarrollador",role:"dev"},
-      {id:"admin1",username:"admin",password:"admin123",name:"Administradora",role:"admin"},
-      {id:"recep1",username:"recepcion",password:"recep123",name:"Recepcionista",role:"recepcion"}
-    ];
+function saveLocal() {
+  LS.set("luc6-users", S.users); LS.set("luc6-co", S.companies);
+  LS.set("luc6-emp", S.employees); LS.set("luc6-bonos", S.bonos);
+  LS.set("luc6-tx", S.transactions); LS.set("luc6-pending", S.pendingSync);
+}
 
-    // Hook Firestore robusto + debug
-    function useFirestore(collection, defVal) {
-      var [data, setData] = useState(defVal);
-      var [loaded, setLoaded] = useState(false);
+// ============ SYNC ENGINE ============
+function addPending(action, table, data, id) {
+  S.pendingSync.push({ action:action, table:table, data:data, id:id, ts:Date.now() });
+  saveLocal();
+}
 
-      useEffect(function() {
-        var ref = db.collection(collection).doc("main");
+function syncToCloud() {
+  if (!DB.configured() || !DB.online || DB.syncing) return;
+  if (S.pendingSync.length === 0) { pullFromCloud(); return; }
+  DB.syncing = true;
+  renderSyncBadge();
 
-        var unsub = ref.onSnapshot(function(doc) {
-          if (doc.exists) {
-            setData(doc.data().items || defVal);
-          } else {
-            ref.set({ items: defVal }, { merge: true }).catch(function(e){
-              console.error("seed", collection, e);
-              window.__debug && window.__debug("seed ERROR " + collection + ": " + (e && e.message));
-            });
-            setData(defVal);
-          }
-          setLoaded(true);
-        }, function(err) {
-          console.error(collection, err);
-          window.__debug && window.__debug("Firestore ERROR en " + collection + ": " + (err && err.message));
-          setLoaded(true);
-        });
+  var pending = S.pendingSync.slice();
+  var i = 0;
 
-        return unsub;
-      }, [collection]);
-
-      var save = useCallback(function(fn) {
-        setData(function(prev) {
-          var next = typeof fn === "function" ? fn(prev) : fn;
-          db.collection(collection).doc("main").set({ items: next }, { merge: true })
-            .catch(function(e){
-              console.error("save", collection, e);
-              window.__debug && window.__debug("save ERROR " + collection + ": " + (e && e.message));
-            });
-          return next;
-        });
-      }, [collection]);
-
-      return [data, save, loaded];
+  function next() {
+    if (i >= pending.length) {
+      S.pendingSync = S.pendingSync.filter(function(p) { return pending.indexOf(p) < 0; });
+      saveLocal();
+      DB.syncing = false;
+      renderSyncBadge();
+      pullFromCloud();
+      return;
     }
+    var p = pending[i]; i++;
+    var promise;
+    if (p.action === 'upsert') promise = DB.upsert(p.table, p.data);
+    else if (p.action === 'update') promise = DB.update(p.table, p.id, p.data);
+    else if (p.action === 'delete') promise = DB.del(p.table, p.id);
+    else if (p.action === 'deleteWhere') promise = DB.delWhere(p.table, p.data.col, p.data.val);
+    else promise = Promise.resolve();
 
-    function App(){
-      // Solo users para mostrar login rápido
-      var [users,setUsers,uL] = useFirestore("users", DEFAULT_USERS);
+    promise.then(next).catch(function() {
+      DB.syncing = false;
+      renderSyncBadge();
+    });
+  }
+  next();
+}
 
-      var [currentUser,setCurrentUser] = useState(null);
-      var [loginUser,setLoginUser] = useState("");
-      var [loginPass,setLoginPass] = useState("");
-      var [loginError,setLoginError] = useState("");
+function pullFromCloud() {
+  if (!DB.configured() || !DB.online) return;
+  Promise.all([
+    DB.select('users'),
+    DB.select('companies'),
+    DB.select('employees'),
+    DB.select('bonos'),
+    DB.selectTx()
+  ]).then(function(results) {
+    var cloudUsers = results[0].map(mapUser);
+    var cloudCo = results[1].map(mapCompany);
+    var cloudEmp = results[2].map(mapEmployee);
+    var cloudBonos = results[3].map(mapBono);
+    var cloudTx = results[4].map(mapTransaction);
 
-      if(!uL){
-        return (
-          <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#0041a3,#0052cc)"}}>
-            <div style={{textAlign:"center"}}>
-              <div style={{fontSize:48,marginBottom:12}}>🛒</div>
-              <p style={{color:"#fff",fontSize:18}}>Conectando...</p>
-              <p style={{color:"rgba(255,255,255,.65)",fontSize:12,marginTop:8}}>Cargando usuarios</p>
-            </div>
-          </div>
-        );
-      }
+    if (cloudUsers.length > 0) S.users = cloudUsers;
+    if (cloudCo.length > 0 || S.companies.length === 0) S.companies = cloudCo;
+    S.employees = cloudEmp;
+    S.bonos = cloudBonos;
+    if (cloudTx.length > 0 || S.transactions.length === 0) S.transactions = cloudTx;
 
-      function doLogin(){
-        var u = (users||[]).find(function(x){ return x.username===loginUser && x.password===loginPass; });
-        if(!u){ setLoginError("Usuario o contraseña incorrectos"); return; }
-        setCurrentUser(u);
-        setLoginUser(""); setLoginPass(""); setLoginError("");
-      }
+    saveLocal();
+    render();
+  }).catch(function(e) {
+    // Si Supabase/RLS bloquea, no rompemos la app, solo queda local.
+    // console.log(e);
+  });
+}
 
-      function doLogout(){
-        setCurrentUser(null);
-      }
+// Map cloud -> local format
+function mapUser(r) { return { id:r.id, username:r.username, password:r.password, name:r.name, role:r.role }; }
+function mapCompany(r) { return { id:r.id, name:r.name }; }
+function mapEmployee(r) { return { id:r.id, name:r.name, dni:r.dni, companyId:r.company_id }; }
+function mapBono(r) { return { id:r.id, employeeId:r.employee_id, companyId:r.company_id, amount:Number(r.amount), remainingBalance:Number(r.remaining_balance), label:r.label, date:r.date }; }
+function mapTransaction(r) { return { id:r.id, employeeId:r.employee_id, employeeName:r.employee_name, employeeDni:r.employee_dni, companyId:r.company_id, amount:Number(r.amount), date:r.date, signature:r.signature, bonosUsed:r.bonos_used||[], caja:r.caja, registeredBy:r.registered_by }; }
 
-      if(!currentUser){
-        return (
-          <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0041a3,#0052cc)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-            <div style={{background:"#fff",borderRadius:24,padding:36,width:"92%",maxWidth:380,boxShadow:"0 30px 80px rgba(0,0,0,.3)"}}>
-              <div style={{textAlign:"center",marginBottom:20}}>
-                <div style={{fontSize:40,marginBottom:6}}>🛒</div>
-                <h1 style={{fontSize:24,color:"#0041a3",fontWeight:800}}>Luconi</h1>
-                <p style={{fontSize:13,color:"#888",marginTop:4}}>Sistema de Vouchers</p>
-              </div>
+// Map local -> cloud format
+function toCloudUser(u) { return { id:u.id, username:u.username, password:u.password, name:u.name, role:u.role }; }
+function toCloudCompany(c) { return { id:c.id, name:c.name }; }
+function toCloudEmployee(e) { return { id:e.id, name:e.name, dni:e.dni, company_id:e.companyId }; }
+function toCloudBono(b) { return { id:b.id, employee_id:b.employeeId, company_id:b.companyId, amount:b.amount, remaining_balance:b.remainingBalance, label:b.label, date:b.date }; }
+function toCloudTx(t) { return { id:t.id, employee_id:t.employeeId, employee_name:t.employeeName, employee_dni:t.employeeDni, company_id:t.companyId, amount:t.amount, date:t.date, signature:t.signature, bonos_used:t.bonosUsed||[], caja:t.caja, registered_by:t.registeredBy }; }
 
-              <label style={LS}>Usuario</label>
-              <input value={loginUser} onChange={function(e){setLoginUser(e.target.value);}} style={{...IS,marginBottom:12}} />
+// ============ UTILS ============
+function gid(){return Math.random().toString(36).slice(2,10);}
+function fmtC(n){return "$"+Number(n).toLocaleString("es-AR",{minimumFractionDigits:2});}
+function fmtD(d){return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});}
+function fmtDS(d){return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"});}
+function todayStr(){return new Date().toISOString().slice(0,10);}
+function curMonth(){return new Date().toISOString().slice(0,7);}
+function monthLabel(m){var p=m.split("-");var ms=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];return ms[parseInt(p[1])-1]+" "+p[0];}
+function $(sel){return document.querySelector(sel);}
+function h(tag,attrs,children){
+  var el=document.createElement(tag);
+  if(attrs)for(var k in attrs){
+    if(k==="style"&&typeof attrs[k]==="object")Object.assign(el.style,attrs[k]);
+    else if(k.startsWith("on"))el.addEventListener(k.slice(2).toLowerCase(),attrs[k]);
+    else if(k==="className")el.className=attrs[k];
+    else if(k==="innerHTML")el.innerHTML=attrs[k];
+    else el.setAttribute(k,attrs[k]);
+  }
+  if(children!=null){
+    if(Array.isArray(children))children.forEach(function(c){if(c!=null)el.appendChild(typeof c==="string"?document.createTextNode(c):c);});
+    else if(typeof children==="string")el.textContent=children;
+    else el.appendChild(children);
+  }
+  return el;
+}
 
-              <label style={LS}>Contraseña</label>
-              <input type="password" value={loginPass} onChange={function(e){setLoginPass(e.target.value);}} style={{...IS,marginBottom:10}} />
+var toastTimer=null;
+function showToast(msg,type){
+  var old=$(".toast"); if(old)old.remove();
+  var t=h("div",{className:"toast toast-"+(type||"success")},msg);
+  document.body.appendChild(t);
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){t.remove();},3000);
+}
 
-              {loginError && <div style={{color:"#e74c3c",fontSize:13,textAlign:"center",marginBottom:10}}>{loginError}</div>}
+function showModal(title,msg,onConfirm){
+  var ov=h("div",{className:"modal-overlay"});
+  ov.appendChild(h("div",{className:"modal-box"},[
+    h("h3",{style:{fontSize:"18px",marginBottom:"10px"}},title),
+    h("p",{style:{color:"#666",fontSize:"14px",marginBottom:"20px"}},msg),
+    h("div",{style:{display:"flex",gap:"10px"}},[
+      h("button",{className:"btn btn-ghost",style:{flex:"1"},onClick:function(){ov.remove();}},"Cancelar"),
+      h("button",{className:"btn btn-red",style:{flex:"1"},onClick:function(){ov.remove();onConfirm();}},"Confirmar")
+    ])
+  ]));
+  document.body.appendChild(ov);
+}
 
-              <button onClick={doLogin} style={{...BS("#0052cc","#fff"),width:"100%",padding:14,fontSize:16}}>Ingresar</button>
+function getEB(eid){return S.bonos.filter(function(b){return b.employeeId===eid&&b.remainingBalance>0;});}
+function getTB(eid){return getEB(eid).reduce(function(s,b){return s+b.remainingBalance;},0);}
 
-              <div style={{marginTop:14,fontSize:11,color:"#777",textAlign:"center"}}>
-                Si queda cargando, mirá el recuadro verde abajo (debug).
-              </div>
-            </div>
-          </div>
-        );
-      }
+function renderSyncBadge() {
+  var el = $("#sync-badge");
+  if (!el) return;
+  if (!DB.configured()) { el.textContent = "⚠️ Sin config"; el.className = "sync-badge sync-offline"; }
+  else if (DB.syncing) { el.textContent = "🔄 Sincronizando..."; el.className = "sync-badge sync-syncing"; }
+  else if (DB.online) { el.textContent = "🟢 Online"; el.className = "sync-badge sync-online"; }
+  else { el.textContent = "🔴 Offline"; el.className = "sync-badge sync-offline"; }
+}
 
-      // Pantalla simple para confirmar que entró
-      return (
-        <div style={{minHeight:"100vh",padding:20}}>
-          <div className="card" style={{maxWidth:520,margin:"0 auto"}}>
-            <h2 style={{fontSize:18,fontWeight:800,marginBottom:6}}>✅ App cargó</h2>
-            <div style={{color:"#666",marginBottom:16}}>Usuario: <b>{currentUser.name}</b></div>
-            <button onClick={doLogout} style={{...BS("#e74c3c","#fff"),width:"100%"}}>Salir</button>
-          </div>
-        </div>
-      );
-    }
+// ============ RENDER ============
+function render(){
+  var app=$("#app");
+  app.innerHTML="";
+  if(!S.currentUser){renderLogin(app);return;}
+  renderApp(app);
+}
 
-    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
-  </script>
-</body>
-</html>
+function renderLogin(app){
+  var page=h("div",{id:"login-page"});
+  var box=h("div",{id:"login-box"});
+  box.innerHTML='<div style="text-align:center;margin-bottom:30px"><div style="font-size:40px;margin-bottom:8px">🛒</div><h1 style="font-size:24px;color:#0041a3;font-weight:700">Luconi</h1><p style="font-size:13px;color:#888;margin-top:4px">Sistema de Vouchers</p></div>';
+  var errP=h("p",{style:{color:"#e74c3c",fontSize:"13px",textAlign:"center",marginBottom:"10px",display:"none"}});
+  var userInp=h("input",{className:"inp",placeholder:"usuario",style:{marginBottom:"12px"}});
+  var passInp=h("input",{className:"inp",type:"password",placeholder:"••••••",style:{marginBottom:"6px"}});
+  function doLogin(){
+    var u=S.users.find(function(x){return x.username===userInp.value&&x.password===passInp.value;});
+    if(!u){errP.textContent="Usuario o contraseña incorrectos";errP.style.display="block";return;}
+    S.currentUser=u;S.view="home";render();syncToCloud();
+  }
+  userInp.addEventListener("keydown",function(e){if(e.key==="Enter")doLogin();});
+  passInp.addEventListener("keydown",function(e){if(e.key==="Enter")doLogin();});
+  box.appendChild(h("label",{className:"lbl"},"Usuario"));box.appendChild(userInp);
+  box.appendChild(h("label",{className:"lbl"},"Contraseña"));box.appendChild(passInp);
+  box.appendChild(errP);
+  box.appendChild(h("button",{className:"btn btn-primary btn-full",style:{padding:"16px",fontSize:"16px",marginTop:"10px"},onClick:doLogin},"Ingresar"));
+  page.appendChild(box);app.appendChild(page);
+}
 
-    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
-  </script>
+/* ---------------------------------------------------------
+   El resto de tu código (renderApp, renderHome, etc.)
+   NO LO TOQUÉ.
+   Pegá desde tu renderApp(...) para abajo TAL CUAL está.
+--------------------------------------------------------- */
+</script>
+
+<script>
+/* ✅ Pegá acá TODO lo que sigue en tu archivo original:
+   - renderApp(...)
+   - renderHome / register / bonos / etc
+   - INIT (render(); setTimeout(syncToCloud...))
+*/
+
+// ========= TU CÓDIGO CONTINÚA (pegalo acá) =========
+</script>
+
 </body>
 </html>
