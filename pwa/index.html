@@ -6,25 +6,23 @@
   <meta name="theme-color" content="#0041a3">
   <meta name="apple-mobile-web-app-capable" content="yes">
 
-  <!-- ✅ IMPORTANTES para /pwa/ -->
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icon-192.png">
   <link rel="apple-touch-icon" href="./icon-192.png">
 
-  <!-- Fuente más rápida (sin @import dentro de <style>) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <title>Luconi Vouchers</title>
 
-  <!-- ✅ defer: no bloquea el render -->
-  <script defer src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script defer src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script defer src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- ✅ SIN defer: así Babel/React/Firebase existen cuando se ejecuta text/babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
@@ -45,112 +43,41 @@
   <noscript>Necesitás habilitar JavaScript para usar esta app.</noscript>
 
   <script>
-    // ✅ Para /pwa/ el SW debe registrarse relativo
+    // ✅ SW con scope /pwa/
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(function(e){
-        console.log('sw err', e);
-      });
+      navigator.serviceWorker.register('./sw.js').catch(function(e){ console.log('sw err', e); });
     }
 
-    // Espera a que estén cargadas las libs (porque arriba están con defer)
-    window.addEventListener('DOMContentLoaded', function () {
-      // Firebase init
-      firebase.initializeApp({
-        apiKey: "AIzaSyBuii4cGIR_6j8DQucQf-hhcwkq7hMTMrk",
-        authDomain: "voucer-luconi.firebaseapp.com",
-        projectId: "voucer-luconi",
-        storageBucket: "voucer-luconi.firebasestorage.app",
-        messagingSenderId: "565791994023",
-        appId: "1:565791994023:web:934c8469d57b50a2d2eb82",
-        measurementId: "G-6KT86PVH3E"
-      });
-
-      // Firestore
-      window.db = firebase.firestore();
-
-      // Offline cache (si falla, no rompe)
-      try {
-        db.enablePersistence().catch(function(){});
-      } catch (e) {}
+    // ✅ Firebase init ANTES de la App
+    firebase.initializeApp({
+      apiKey: "AIzaSyBuii4cGIR_6j8DQucQf-hhcwkq7hMTMrk",
+      authDomain: "voucer-luconi.firebaseapp.com",
+      projectId: "voucer-luconi",
+      storageBucket: "voucer-luconi.firebasestorage.app",
+      messagingSenderId: "565791994023",
+      appId: "1:565791994023:web:934c8469d57b50a2d2eb82",
+      measurementId: "G-6KT86PVH3E"
     });
+
+    // ✅ db disponible ya mismo
+    window.db = firebase.firestore();
+
+    // offline cache (si falla no rompe)
+    try { window.db.enablePersistence().catch(function(){}); } catch(e) {}
   </script>
 
-  <!-- ✅ Tu app sigue igual, solo que db viene de window.db -->
   <script type="text/babel">
     var { useState, useEffect, useRef, useCallback } = React;
 
-    // ✅ usamos la instancia inicializada arriba
+    // ✅ ahora SI existe
     var db = window.db;
 
-    var gid = function(){ return Math.random().toString(36).slice(2,10); };
-    function fmtC(n){ return "$"+Number(n).toLocaleString("es-AR",{minimumFractionDigits:2}); }
-    function fmtD(d){ return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}); }
-    function fmtDS(d){ return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"}); }
-
-    function pad2(n){ return String(n).padStart(2,"0"); }
-    function localDateKey(d){
-      var x = new Date(d);
-      return x.getFullYear()+"-"+pad2(x.getMonth()+1)+"-"+pad2(x.getDate());
-    }
-    function localMonthKey(d){
-      var x = new Date(d);
-      return x.getFullYear()+"-"+pad2(x.getMonth()+1);
-    }
-    function todayStr(){ return localDateKey(new Date()); }
-    function curMonth(){ return localMonthKey(new Date()); }
-    function monthLabel(m){
-      var p=m.split("-");
-      var ms=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-      return ms[parseInt(p[1],10)-1]+" "+p[0];
-    }
-
-    function useFirestore(collection, defVal) {
-      var [data, setData] = useState(defVal);
-      var [loaded, setLoaded] = useState(false);
-
-      useEffect(function() {
-        var ref = db.collection(collection).doc("main");
-        var unsub = ref.onSnapshot(function(doc) {
-          if (doc.exists) {
-            setData(doc.data().items || defVal);
-          } else {
-            ref.set({ items: defVal }, { merge: true }).catch(function(e){
-              console.error("seed", collection, e);
-            });
-            setData(defVal);
-          }
-          setLoaded(true);
-        }, function(err) {
-          console.error(collection, err);
-          setLoaded(true);
-        });
-        return unsub;
-      }, [collection]);
-
-      var save = useCallback(function(fn) {
-        setData(function(prev) {
-          var next = typeof fn === "function" ? fn(prev) : fn;
-          db.collection(collection).doc("main").set({ items: next }, { merge: true })
-            .catch(function(e){ console.error("save", collection, e); });
-          return next;
-        });
-      }, [collection]);
-
-      return [data, save, loaded];
-    }
-
-    // =========================================================
-    // PEGÁ AQUÍ TODO TU CÓDIGO DESDE:
-    // var BS = ...;
-    // DEFAULT_USERS ...
-    // function SignaturePad...
-    // function App()...
-    // hasta el final:
-    // ReactDOM.createRoot(...).render(...)
-    // =========================================================
-
-    // 👇 EJEMPLO DE RENDER FINAL (DEJALO IGUAL AL TUYO)
-    // ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+    // --- PEGÁ ACÁ TODO TU CÓDIGO COMPLETO DE LA APP (tal cual lo tenías) ---
+    // (BS, DEFAULT_USERS, SignaturePad, App(), etc.)
+    //
+    // Importante: al final dejá esto:
+    //
+    //  ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
   </script>
 </body>
 </html>
