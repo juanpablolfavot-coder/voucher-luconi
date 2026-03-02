@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.luconi.vouchers",
+        "sha256_cert_fingerprints": ["EC:9B:B8:8E:1D:A4:02:5B:D0:8C:2D:AC:2E:A8:6E:45:69:A7:EB:0A:00:11:70:A1:99:95:68:58:D2:40:0D:4E"]
+      }
+    }]
