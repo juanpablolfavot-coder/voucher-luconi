@@ -2,6 +2,7 @@ var CACHE_NAME = 'luconi-v4';
 var urlsToCache = [
   './',
   'index.html',
+  'luconi_vouchers.html',
   'icon-192.png',
   'icon-512.png',
   'manifest.json'
