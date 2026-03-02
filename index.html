@@ -9,11 +9,14 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Luconi Vouchers</title>
+
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',-apple-system,sans-serif}
@@ -26,12 +29,13 @@ button:hover{transform:translateY(-1px)}
 input:focus,select:focus,textarea:focus{outline:none;border-color:#0052cc!important;box-shadow:0 0 0 3px rgba(0,82,204,.15)}
 </style>
 </head>
+
 <body>
 <div id="root" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">Cargando…</div>
 <noscript>Necesitás habilitar JavaScript para usar esta app.</noscript>
 
 <script>
-// Firebase init
+/** Firebase init */
 firebase.initializeApp({
   apiKey: "AIzaSyBuii4cGIR_6j8DQucQf-hhcwkq7hMTMrk",
   authDomain: "voucer-luconi.firebaseapp.com",
@@ -42,10 +46,10 @@ firebase.initializeApp({
   measurementId: "G-6KT86PVH3E"
 });
 
-// ✅ ESTO ES LO QUE TE FALTA
+/** ✅ Firestore instance (antes te faltaba esto) */
 var db = firebase.firestore();
 
-// ✅ Cache offline (acelera mucho)
+/** ✅ Cache offline (acelera después de la 1ra carga) */
 db.enablePersistence().catch(function(){});
 
 if ('serviceWorker' in navigator) {
@@ -61,7 +65,7 @@ function fmtC(n){ return "$"+Number(n).toLocaleString("es-AR",{minimumFractionDi
 function fmtD(d){ return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}); }
 function fmtDS(d){ return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"}); }
 
-// === FIX FECHAS (LOCAL) para "hoy/mes/reportes" ===
+/** === FIX FECHAS (LOCAL) para "hoy/mes/reportes" === */
 function pad2(n){ return String(n).padStart(2,"0"); }
 function localDateKey(d){
   var x = new Date(d);
@@ -73,21 +77,30 @@ function localMonthKey(d){
 }
 function todayStr(){ return localDateKey(new Date()); }
 function curMonth(){ return localMonthKey(new Date()); }
-
 function monthLabel(m){
   var p=m.split("-");
   var ms=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
   return ms[parseInt(p[1],10)-1]+" "+p[0];
 }
 
-// Firebase hook: real-time sync
+/**
+ * Firebase hook: real-time sync
+ * ✅ FIX: si el doc "main" no existe, lo "siembra" con el default
+ * (Así Firestore deja de quedar vacío)
+ */
 function useFirestore(collection, defVal) {
   var [data, setData] = useState(defVal);
   var [loaded, setLoaded] = useState(false);
 
   useEffect(function() {
     var unsub = db.collection(collection).doc("main").onSnapshot(function(doc) {
-      if (doc.exists) { setData(doc.data().items || defVal); }
+      if (doc.exists) {
+        setData(doc.data().items || defVal);
+      } else {
+        db.collection(collection).doc("main").set({ items: defVal }, { merge: true })
+          .catch(function(e){ console.error("seed", collection, e); });
+        setData(defVal);
+      }
       setLoaded(true);
     }, function(err) { console.error(collection, err); setLoaded(true); });
     return unsub;
@@ -96,7 +109,8 @@ function useFirestore(collection, defVal) {
   var save = useCallback(function(fn) {
     setData(function(prev) {
       var next = typeof fn === "function" ? fn(prev) : fn;
-      db.collection(collection).doc("main").set({ items: next }, { merge: true }).catch(function(e){ console.error("save",e); });
+      db.collection(collection).doc("main").set({ items: next }, { merge: true })
+        .catch(function(e){ console.error("save",e); });
       return next;
     });
   }, [collection]);
@@ -165,11 +179,11 @@ function SummaryCard(props){
 
 function genTicketHTML(tx,company,caja){
   var bonos=tx.bonosUsed&&tx.bonosUsed.length>0?tx.bonosUsed.map(function(b){return b.label+": "+fmtC(b.amount);}).join(" | "):"—";
-  return'<html><head><meta charset="utf-8"><title>Ticket</title><style>body{font-family:Arial,sans-serif;max-width:350px;margin:0 auto;padding:20px;color:#222}.header{text-align:center;border-bottom:2px dashed #333;padding-bottom:12px;margin-bottom:16px}.header h1{font-size:20px;color:#0041a3;margin:0}.header p{font-size:11px;color:#888;margin:4px 0 0}.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dotted #ccc;font-size:13px}.row .label{color:#666;font-weight:600}.row .value{font-weight:700;text-align:right;max-width:60%}.caja{text-align:center;margin:18px 0;padding:14px;background:#0041a3;color:#fff;border-radius:10px;font-size:20px;font-weight:700}.firma{text-align:center;margin-top:16px}.firma img{max-height:60px}.footer{text-align:center;margin-top:20px;padding-top:12px;border-top:2px dashed #333;font-size:10px;color:#999}</style></head><body><div class="header"><h1>LUCONI</h1><p>Comprobante de Voucher</p></div><div class="row"><span class="label">Fecha:</span><span class="value">'+fmtD(tx.date)+'</span></div><div class="row"><span class="label">Empleado:</span><span class="value">'+tx.employeeName+'</span></div><div class="row"><span class="label">DNI:</span><span class="value">'+tx.employeeDni+'</span></div><div class="row"><span class="label">Empresa:</span><span class="value">'+(company||"—")+'</span></div>'+(tx.amount>0?'<div class="row"><span class="label">Monto:</span><span class="value">'+fmtC(tx.amount)+'</span></div>':'')+'<div class="row"><span class="label">Bonos:</span><span class="value">'+bonos+'</span></div><div class="caja">→ CAJA '+caja+' ←</div>'+(tx.signature?'<div class="firma"><p style="font-size:11px;color:#888;margin:0 0 6px">Firma:</p><img src="'+tx.signature+'"/></div>':'')+'<div class="footer">Supermercado Luconi · Ticket #'+tx.id.toUpperCase()+'</div></body></html>';
+  return'<html><head><meta charset="utf-8"><title>Ticket</title><style>body{font-family:Arial,sans-serif;max-width:350px;margin:0 auto;padding:20px;color:#222}.header{text-align:center;border-bottom:2px dashed #333;padding-bottom:12px;margin-bottom:16px}.header h1{font-size:20px;color:#0041a3;margin:0}.header p{font-size:11px;color:#888;margin:4px 0 0}.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dotted #ccc;font-size:13px}.row .label{color:#666;font-weight:600}.row .value{font-weight:700;text-align:right;max-width:60%}.caja{text-align:center;margin:18px 0;padding:14px;background:#0041a3;color:#fff;border-radius:10px;font-size:20px;font-weight:700}.firma{text-align:center;margin-top:16px}.firma img{max-height:60px}.footer{text-align:center;margin-top:20px;padding-top:12px;border-top:2px dashed #333;font-size:10px;color:#999}</style></head><body><div class="header"><h1>LUCONI</h1><p>Comprobante de Voucher</p></div><div class="row"><span class="label">Fecha:</span><span class="value">'+fmtD(tx.date)+'</span></div><div class="row"><span class="label">Empleado:</span><span class="value">'+tx.employeeName+'</span></div><div class="row"><span class="label">DNI:</span><span class="value">'+tx.employeeDni+'</span></div><div class="row"><span class="label">Empresa:</span><span class="value">'+(company||"—")+'</span></div>'+(tx.amount>0?'<div class="row"><span class="label">Total:</span><span class="value">'+fmtC(tx.amount)+'</span></div>':'')+'<div class="row"><span class="label">Bonos:</span><span class="value">'+bonos+'</span></div><div class="caja">→ CAJA '+caja+' ←</div>'+(tx.signature?'<div class="firma"><p style="font-size:11px;color:#888;margin:0 0 6px">Firma:</p><img src="'+tx.signature+'"/></div>':'')+'<div class="footer">Supermercado Luconi · Ticket #'+tx.id.toUpperCase()+'</div></body></html>';
 }
 function genTicketText(tx,company,caja){
   var l=["🛒 *LUCONI - Comprobante*","","📅 "+fmtD(tx.date),"👤 "+tx.employeeName,"🪪 DNI: "+tx.employeeDni,"🏢 "+(company||"—")];
-  if(tx.amount>0)l.push("💰 "+fmtC(tx.amount));
+  if(tx.amount>0)l.push("💰 Total: "+fmtC(tx.amount));
   if(tx.bonosUsed&&tx.bonosUsed.length>0)l.push("🎁 "+tx.bonosUsed.map(function(b){return b.label+" "+fmtC(b.amount);}).join(", "));
   l.push("","📦 *→ CAJA "+caja+" ←*","","Ticket #"+tx.id.toUpperCase());
   return l.join("\n");
@@ -189,29 +203,36 @@ function App(){
   var [view,setView]=useState("home");
   var [toast,setToast]=useState(null);
   var [modal,setModal]=useState(null);
+
   var [coForm,setCoForm]=useState({name:""});
   var [empForm,setEmpForm]=useState({name:"",dni:"",companyId:""});
   var [bulkText,setBulkText]=useState("");
   var [bulkCo,setBulkCo]=useState("");
+
   var [searchDni,setSearchDni]=useState("");
   var [found,setFound]=useState(null);
-  var [purchaseAmt,setPurchaseAmt]=useState("");
   var [showSig,setShowSig]=useState(false);
   var [selectedCaja,setSelectedCaja]=useState("1");
+
   var [rMonth,setRMonth]=useState(curMonth());
   var [rCo,setRCo]=useState("all");
+
   var [bonoCo,setBonoCo]=useState("");
   var [bonoEmpId,setBonoEmpId]=useState("");
   var [bonoAmt,setBonoAmt]=useState("");
   var [bonoLabel,setBonoLabel]=useState("");
   var [bonoEmpSearch,setBonoEmpSearch]=useState("");
   var [selectedBonos,setSelectedBonos]=useState([]);
+
   var [bulkBonoText,setBulkBonoText]=useState("");
   var [bulkBonoCo,setBulkBonoCo]=useState("");
   var [bulkBonoLabel,setBulkBonoLabel]=useState("");
+
   var [lastTicket,setLastTicket]=useState(null);
+
   var [importCo,setImportCo]=useState("");
   var fileRef=useRef(null);
+
   var [myPwCur,setMyPwCur]=useState("");
   var [myPwNew,setMyPwNew]=useState("");
   var [myPwConf,setMyPwConf]=useState("");
@@ -274,7 +295,7 @@ function App(){
     });
   }
 
-  // === FIX DNI duplicado: normaliza ===
+  /** FIX DNI duplicado: normaliza */
   function addEmp(){
     if(!empForm.name||!empForm.dni||!empForm.companyId){show("Completá campos","error");return;}
     var dn = empForm.dni.replace(/\D/g,"");
@@ -303,6 +324,7 @@ function App(){
     setEmployees(function(p){return[...p,...ne];});
     setBulkText("");show(n+" cargados ✓");
   }
+
   function delEmp(id){
     setEmployees(function(p){return p.filter(function(e){return e.id!==id;});});
     setBonos(function(p){return p.filter(function(b){return b.employeeId!==id;});});
@@ -361,6 +383,7 @@ function App(){
     var a=document.createElement("a");a.href=u;a.download="preforma_vouchers_luconi.csv";a.click();
     URL.revokeObjectURL(u);show("Descargada ✓");
   }
+
   function downloadPreformaEmp(coId){
     var ce=employees.filter(function(e){return e.companyId===coId;});
     var n=(companies.find(function(c){return c.id===coId;})||{}).name||"emp";
@@ -370,6 +393,7 @@ function App(){
     var a=document.createElement("a");a.href=u;a.download="preforma_"+n.replace(/\s/g,"_")+".csv";a.click();
     URL.revokeObjectURL(u);show("Descargada ✓");
   }
+
   function shareWA(){
     window.open("https://wa.me/?text="+encodeURIComponent("Hola! Te envío la preforma de vouchers de Supermercado Luconi.\n\nCompletar: Nombre, DNI, Bono 1 y Bono 2.\n\n🛒 Supermercado Luconi"),"_blank");
   }
@@ -377,7 +401,6 @@ function App(){
     window.open("mailto:?subject="+encodeURIComponent("Preforma Vouchers - Luconi")+"&body="+encodeURIComponent("Hola,\n\nAdjunto preforma de vouchers.\nCompletar: Nombre, DNI, Bono 1 y Bono 2.\n\nGracias!\nSupermercado Luconi"),"_self");
   }
 
-  // === FIX import CSV: acepta , o ; (mejor que split(",") ) ===
   function importCSV(evt){
     var file=evt.target.files[0];
     if(!file||!importCo){show("Seleccioná empresa","error");return;}
@@ -405,7 +428,6 @@ function App(){
         }
 
         if(eid){
-          // columnas: Nombre, DNI, Bono1_Nombre, Bono1_Monto, Bono2_Nombre, Bono2_Monto
           var b1a=parseFloat(c[3])||0,b2a=parseFloat(c[5])||0;
           if(b1a>0){nB.push({id:gid(),employeeId:eid,companyId:importCo,amount:b1a,remainingBalance:b1a,label:c[2]||"Bono 1",date:new Date().toISOString()});bA++;}
           if(b2a>0){nB.push({id:gid(),employeeId:eid,companyId:importCo,amount:b2a,remainingBalance:b2a,label:c[4]||"Bono 2",date:new Date().toISOString()});bA++;}
@@ -425,38 +447,59 @@ function App(){
     var c=searchDni.replace(/\D/g,"");
     var emp=employees.find(function(e){return e.dni.replace(/\D/g,"")===c;});
     setFound(emp||null);
-    setPurchaseAmt("");setShowSig(false);setSelectedBonos([]);setSelectedCaja("1");
+    setShowSig(false);
+    setSelectedBonos([]);
+    setSelectedCaja("1");
     if(!emp)show("No encontrado","error");
   }
+
   function toggleBono(id){
     setSelectedBonos(function(p){return p.includes(id)?p.filter(function(x){return x!==id;}):[...p,id];});
   }
 
+  /**
+   * ✅ SIN MONTO:
+   * - Recepción tilda bono(s)
+   * - Firma
+   * - Se consume TODO el saldo de los bonos tildados (o todos si no tildó ninguno)
+   */
   function registerPurchase(sig){
-    var amount=purchaseAmt?parseFloat(purchaseAmt):0,eb=getEB(found.id),bu=[];
-    if(eb.length>0&&amount>0){
-      var ub=selectedBonos.length>0?eb.filter(function(b){return selectedBonos.includes(b.id);}):eb;
-      var av=ub.reduce(function(s,b){return s+b.remainingBalance;},0);
-      if(amount>av){show("Saldo insuficiente","error");return;}
-      var rem=amount,upd=bonos.slice();
+    var eb = getEB(found.id);
+
+    var ub = [];
+    if(eb.length > 0){
+      ub = selectedBonos.length > 0
+        ? eb.filter(function(b){ return selectedBonos.includes(b.id); })
+        : eb;
+    }
+
+    var bu = [];
+    var total = 0;
+
+    if(ub.length > 0){
+      var upd = bonos.slice();
       for(var i=0;i<ub.length;i++){
-        if(rem<=0)break;
-        var x=ub[i],idx=upd.findIndex(function(b){return b.id===x.id;}),dd=Math.min(rem,x.remainingBalance);
-        upd[idx]=Object.assign({},upd[idx],{remainingBalance:upd[idx].remainingBalance-dd});
-        bu.push({bonoId:x.id,amount:dd,label:x.label});
-        rem-=dd;
+        var x = ub[i];
+        var idx = upd.findIndex(function(b){ return b.id === x.id; });
+        if(idx === -1) continue;
+
+        var dd = Number(upd[idx].remainingBalance) || 0;
+        if(dd <= 0) continue;
+
+        upd[idx] = Object.assign({}, upd[idx], { remainingBalance: 0 });
+        bu.push({ bonoId: x.id, amount: dd, label: x.label });
+        total += dd;
       }
       setBonos(upd);
     }
 
-    // guardo ISO (ok), pero filtros son locales con localDateKey/localMonthKey
     var tx={
       id:gid(),
       employeeId:found.id,
       employeeName:found.name,
       employeeDni:found.dni,
       companyId:found.companyId,
-      amount:amount,
+      amount: total,              // total consumido
       date:new Date().toISOString(),
       signature:sig,
       bonosUsed:bu,
@@ -465,12 +508,20 @@ function App(){
     };
 
     setTransactions(function(p){return[...p,tx];});
-    setLastTicket({tx:tx,company:(companies.find(function(c){return c.id===found.companyId;})||{}).name||"?",caja:selectedCaja});
+    setLastTicket({
+      tx:tx,
+      company:(companies.find(function(c){return c.id===found.companyId;})||{}).name||"?",
+      caja:selectedCaja
+    });
+
     show("Registrada ✓");
-    setFound(null);setSearchDni("");setPurchaseAmt("");setShowSig(false);setSelectedBonos([]);
+    setFound(null);
+    setSearchDni("");
+    setShowSig(false);
+    setSelectedBonos([]);
   }
 
-  // === FIX contadores: usan fecha local ===
+  /** contadores: fecha local */
   function vToday(){
     var k=todayStr();
     return transactions.filter(function(t){return localDateKey(t.date)===k;}).length;
@@ -484,7 +535,6 @@ function App(){
     return transactions.filter(function(t){return localMonthKey(t.date)===k;}).length;
   }
 
-  // === FIX reportes: filtra por mes local ===
   function rData(){
     var f=transactions.filter(function(t){return localMonthKey(t.date)===rMonth;});
     if(rCo!=="all")f=f.filter(function(t){return t.companyId===rCo;});
@@ -507,9 +557,7 @@ function App(){
 
   function exportPDF(){
     var d=rData(),e=rSumE(),ml=monthLabel(rMonth),cn=rCo==="all"?"Todas":(companies.find(function(c){return c.id===rCo;})||{}).name;
-
-    var h='<html><head><meta charset="utf-8"><title>Reporte '+ml+'</title><style>body{font-family:Arial,sans-serif;padding:40px;color:#222}h1{color:#0041a3;font-size:22px}h2{color:#333;font-size:16px;margin:20px 0 8px}.sub{color:#666;font-size:13px;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#0041a3;color:#fff;padding:8px;text-align:left}td{padding:6px;border-bottom:1px solid #ddd}tr:nth-child(even){background:#f5f8fc}.sc{display:inline-block;background:#f0f4f8;border-radius:10px;padding:14px 20px;margin:0 10px 10px 0;text-align:center}.sc .n{font-size:24px;font-weight:bold;color:#0041a3}.sc .l{font-size:10px;color:#666}.fi{height:35px}.ft{margin-top:30px;font-size:10px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:10px}</style></head><body><h1>Luconi — '+ml+'</h1><p class="sub">'+cn+' · '+fmtDS(new Date())+'</p>';
-
+    var h='<html><head><meta charset="utf-8"><title>Reporte '+ml+'</title><style>body{font-family:Arial,sans-serif;padding:40px;color:#222}h1{color:#0041a3;font-size:22px}h2{color:#333;font-size:16px;margin:20px 0 8px}.sub{color:#666;font-size:13px;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#0041a3;color:#fff;padding:8px;text-align:left}td{padding:6px;border-bottom:1px solid #ddd}tr:nth-child(even){background:#f5f8fc}.sc{display:inline-block;background:#f0f4f8;border-radius:10px;padding:14px 20px;margin:0 10px 10px 0;text-align:center}.sc .n{font-size:24px;font-weight:bold;color:#0041a3}.sc .l{font-size:10px;color:#666}.ft{margin-top:30px;font-size:10px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:10px}</style></head><body><h1>Luconi — '+ml+'</h1><p class="sub">'+cn+' · '+fmtDS(new Date())+'</p>';
     if(e.length>0){
       h+='<h2>Resumen</h2>';
       for(var j=0;j<e.length;j++){
@@ -518,11 +566,10 @@ function App(){
         h+='<p style="font-weight:600;margin:4px 0 14px">'+e[j].name+'</p>';
       }
     }
-
     h+='<h2>Detalle</h2>';
     if(d.length===0)h+='<p>Sin visitas.</p>';
     else{
-      h+='<table><thead><tr><th>Fecha</th><th>Empleado</th><th>DNI</th><th>Empresa</th><th>Monto</th><th>Bonos</th><th>Caja</th></tr></thead><tbody>';
+      h+='<table><thead><tr><th>Fecha</th><th>Empleado</th><th>DNI</th><th>Empresa</th><th>Total</th><th>Bonos</th><th>Caja</th></tr></thead><tbody>';
       for(var k=0;k<d.length;k++){
         var t=d[k],co=companies.find(function(c){return c.id===t.companyId;});
         var bl=t.bonosUsed&&t.bonosUsed.length>0?t.bonosUsed.map(function(b){return b.label+": "+fmtC(b.amount);}).join(", "):"—";
@@ -539,19 +586,38 @@ function App(){
   var activeBonos=bonos.filter(function(b){return b.remainingBalance>0;});
   var repE=rSumE(),repR=rData(),lastTx=transactions.slice().reverse().slice(0,8);
   var otherUsers=users.filter(function(u){return u.role!=="dev";});
+
   var adminNav=[{key:"home",icon:"🏠",l:"Inicio"},{key:"register",icon:"🛒",l:"Registrar"},{key:"bonos",icon:"🎁",l:"Bonos"},{key:"companies",icon:"🏢",l:"Empresas"},{key:"employees",icon:"👥",l:"Personal"},{key:"reports",icon:"📊",l:"Reportes"},{key:"settings",icon:"⚙️",l:"Config"}];
   var recepNav=[{key:"home",icon:"🏠",l:"Inicio"},{key:"register",icon:"🛒",l:"Registrar"}];
   var nav=isAdmin?adminNav:recepNav;
 
-  if(!loaded)return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#0041a3,#0052cc)"}}><div style={{textAlign:"center"}}><div style={{fontSize:48,marginBottom:12}}>🛒</div><p style={{color:"#fff",fontSize:18}}>Conectando...</p><p style={{color:"rgba(255,255,255,.6)",fontSize:12,marginTop:8}}>Sincronizando con la base de datos</p></div></div>;
+  if(!loaded)return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#0041a3,#0052cc)"}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:48,marginBottom:12}}>🛒</div>
+        <p style={{color:"#fff",fontSize:18}}>Conectando...</p>
+        <p style={{color:"rgba(255,255,255,.6)",fontSize:12,marginTop:8}}>Sincronizando con la base de datos</p>
+      </div>
+    </div>
+  );
 
   if(!currentUser)return(
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0041a3,#0052cc)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif"}}>
       <div style={{background:"#fff",borderRadius:24,padding:40,width:"90%",maxWidth:380,boxShadow:"0 30px 80px rgba(0,0,0,.3)"}}>
-        <div style={{textAlign:"center",marginBottom:30}}><div style={{fontSize:40,marginBottom:8}}>🛒</div><h1 style={{fontSize:24,color:"#0041a3",fontWeight:700}}>Luconi</h1><p style={{fontSize:13,color:"#888",marginTop:4}}>Sistema de Vouchers</p></div>
-        <label style={LS}>Usuario</label><input placeholder="usuario" value={loginUser} onChange={function(e){setLoginUser(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")doLogin();}} style={{...IS,marginBottom:12}} />
-        <label style={LS}>Contraseña</label><input type="password" placeholder="••••••" value={loginPass} onChange={function(e){setLoginPass(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")doLogin();}} style={{...IS,marginBottom:6}} />
+        <div style={{textAlign:"center",marginBottom:30}}>
+          <div style={{fontSize:40,marginBottom:8}}>🛒</div>
+          <h1 style={{fontSize:24,color:"#0041a3",fontWeight:700}}>Luconi</h1>
+          <p style={{fontSize:13,color:"#888",marginTop:4}}>Sistema de Vouchers</p>
+        </div>
+
+        <label style={LS}>Usuario</label>
+        <input placeholder="usuario" value={loginUser} onChange={function(e){setLoginUser(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")doLogin();}} style={{...IS,marginBottom:12}} />
+
+        <label style={LS}>Contraseña</label>
+        <input type="password" placeholder="••••••" value={loginPass} onChange={function(e){setLoginPass(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")doLogin();}} style={{...IS,marginBottom:6}} />
+
         {loginError&&<p style={{color:"#e74c3c",fontSize:13,marginBottom:10,textAlign:"center"}}>{loginError}</p>}
+
         <button onClick={doLogin} style={{...BS("#0052cc","#fff"),width:"100%",padding:16,fontSize:16,marginTop:10}}>Ingresar</button>
       </div>
     </div>
@@ -560,7 +626,10 @@ function App(){
   return(
     <div style={{minHeight:"100vh",background:"#f0f4f8",fontFamily:"'DM Sans',sans-serif",color:"#1a1a2e",paddingBottom:90}}>
       <div style={{background:"linear-gradient(135deg,#0041a3,#0052cc)",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><h1 style={{fontSize:18,color:"#fff",fontWeight:700}}>Luconi — Vouchers</h1><p style={{fontSize:10,color:"rgba(255,255,255,.6)"}}>{currentUser.name} · ☁️ Online</p></div>
+        <div>
+          <h1 style={{fontSize:18,color:"#fff",fontWeight:700}}>Luconi — Vouchers</h1>
+          <p style={{fontSize:10,color:"rgba(255,255,255,.6)"}}>{currentUser.name} · ☁️ Online</p>
+        </div>
         <button onClick={doLogout} style={{...BS("rgba(255,255,255,.15)","#fff"),fontSize:12,padding:"8px 14px"}}>Salir</button>
       </div>
 
@@ -574,20 +643,11 @@ function App(){
               <div style={{fontSize:14,color:"#444",lineHeight:1.8,marginBottom:16}}>
                 <div><strong>{lastTicket.tx.employeeName}</strong> — DNI {lastTicket.tx.employeeDni}</div>
                 <div>{lastTicket.company}</div>
-                {lastTicket.tx.amount>0&&<div>Monto: {fmtC(lastTicket.tx.amount)}</div>}
+                {lastTicket.tx.amount>0&&<div>Total: {fmtC(lastTicket.tx.amount)}</div>}
               </div>
               <div style={{display:"flex",gap:8,marginBottom:10}}>
-                <button
-                  onClick={function(){
-                    var w=window.open("","_blank");
-                    if(w){w.document.write(genTicketHTML(lastTicket.tx,lastTicket.company,lastTicket.caja));w.document.close();setTimeout(function(){w.print();},500);}
-                  }}
-                  style={{...BS("#0052cc","#fff"),flex:1,fontSize:13}}
-                >🖨️ Imprimir</button>
-                <button
-                  onClick={function(){window.open("https://wa.me/?text="+encodeURIComponent(genTicketText(lastTicket.tx,lastTicket.company,lastTicket.caja)),"_blank");}}
-                  style={{...BS("#25d366","#fff"),flex:1,fontSize:13}}
-                >📱 WhatsApp</button>
+                <button onClick={function(){var w=window.open("","_blank");if(w){w.document.write(genTicketHTML(lastTicket.tx,lastTicket.company,lastTicket.caja));w.document.close();setTimeout(function(){w.print();},500);}}} style={{...BS("#0052cc","#fff"),flex:1,fontSize:13}}>🖨️ Imprimir</button>
+                <button onClick={function(){window.open("https://wa.me/?text="+encodeURIComponent(genTicketText(lastTicket.tx,lastTicket.company,lastTicket.caja)),"_blank");}} style={{...BS("#25d366","#fff"),flex:1,fontSize:13}}>📱 WhatsApp</button>
               </div>
               <button onClick={function(){setLastTicket(null);}} style={{...BS("#f0f4f8","#333"),width:"100%"}}>Cerrar</button>
             </div>
@@ -621,7 +681,7 @@ function App(){
                     <div style={{fontWeight:600,fontSize:14}}>{t.employeeName}</div>
                     <div style={{fontSize:12,color:"#888"}}>DNI {t.employeeDni} · {co?co.name:"?"} · Caja {t.caja||"?"}</div>
                   </div>
-                  {t.amount>0&&<span style={{fontWeight:700,color:"#e74c3c",fontSize:14}}>{fmtC(t.amount)}</span>}
+                  {t.amount>0&&<span style={{fontWeight:700,color:"#27ae60",fontSize:14}}>{fmtC(t.amount)}</span>}
                 </div>
               );
             })}
@@ -662,6 +722,9 @@ function App(){
                             </label>
                           );
                         })}
+                        <div style={{fontSize:11,color:"#666",marginTop:8}}>
+                          *Tildá el/los bono(s) y firmá. No se ingresa monto.*
+                        </div>
                       </div>
                     ) : (
                       <div style={{marginTop:10,fontSize:13,color:"#888",fontStyle:"italic"}}>Sin bonos</div>
@@ -670,13 +733,6 @@ function App(){
 
                   {!showSig ? (
                     <div>
-                      {getEB(found.id).length>0 && (
-                        <div>
-                          <label style={LS}>Monto</label>
-                          <input type="number" placeholder="0.00" value={purchaseAmt} onChange={function(e){setPurchaseAmt(e.target.value);}} style={{...IS,marginBottom:16,fontSize:20,fontWeight:700,textAlign:"center"}} />
-                        </div>
-                      )}
-
                       <label style={LS}>Caja</label>
                       <div style={{display:"flex",gap:10,marginBottom:18}}>
                         <button onClick={function(){setSelectedCaja("1");}} style={{...BS(selectedCaja==="1"?"#0052cc":"#e2e8f0",selectedCaja==="1"?"#fff":"#333"),flex:1,fontSize:18,padding:16}}>🔵 Caja 1</button>
@@ -685,12 +741,7 @@ function App(){
 
                       <button
                         onClick={function(){
-                          if(getEB(found.id).length>0&&purchaseAmt){
-                            var a=parseFloat(purchaseAmt);
-                            if(a<=0){show("Inválido","error");return;}
-                            var u=selectedBonos.length>0?getEB(found.id).filter(function(b){return selectedBonos.includes(b.id);}):getEB(found.id);
-                            if(a>u.reduce(function(s,b){return s+b.remainingBalance;},0)){show("Saldo insuficiente","error");return;}
-                          }
+                          // ✅ sin monto: directo a firma
                           setShowSig(true);
                         }}
                         style={{...BS("#0052cc","#fff"),width:"100%",padding:16,fontSize:16}}
@@ -787,7 +838,6 @@ function App(){
               if(cb.length===0)return null;
               var byE={};
               for(var i=0;i<cb.length;i++){if(!byE[cb[i].employeeId])byE[cb[i].employeeId]=[];byE[cb[i].employeeId].push(cb[i]);}
-
               return(
                 <div key={co.id} style={{marginBottom:20}}>
                   <h4 style={{fontSize:13,fontWeight:600,color:"#5a6a7a",marginBottom:8}}>{co.name}</h4>
@@ -977,6 +1027,7 @@ function App(){
             )}
           </div>
         )}
+
       </div>
 
       {toast&&(
