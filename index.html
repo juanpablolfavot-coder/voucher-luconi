@@ -57,13 +57,15 @@
       // ✅ NUEVA CONFIG (voucher-luconi2)
       // Pegá el apiKey real + storageBucket real
       var firebaseConfig = {
-        apiKey: "PEGAR_ACA_LA_API_KEY_DE_voucher-luconi2",
-        authDomain: "voucher-luconi2.firebaseapp.com",
-        projectId: "voucher-luconi2",
-        storageBucket: "PEGAR_ACA_EL_storageBucket_DE_voucher-luconi2",
-        messagingSenderId: "1063324611181",
-        appId: "1:1063324611181:web:43d0f04c7b838bd3450564"
-      };
+       firebase.initializeApp({
+  apiKey: "AIzaSyDk33-d7Xcj2mrsg-OEZdVZEleh8HMvC4o",
+  authDomain: "voucher-luconi2.firebaseapp.com",
+  projectId: "voucher-luconi2",
+  storageBucket: "voucher-luconi2.firebasestorage.app",
+  messagingSenderId: "1063324611181",
+  appId: "1:1063324611181:web:43d0f04c7b838bd3450564",
+  measurementId: "G-PLVN0EJTM6"
+});
 
       function setLocalMode(reason){
         console.warn("[Luconi] Firestore OFF -> Local mode:", reason);
@@ -1051,6 +1053,12 @@
         </div>
       );
     }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+  </script>
+</body>
+</html>
+
 
     ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
   </script>
