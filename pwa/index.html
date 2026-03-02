@@ -1,1019 +1,156 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#0041a3">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
-<title>Luconi Vouchers</title>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'DM Sans',-apple-system,sans-serif}
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
-input,select,textarea{font-family:'DM Sans',sans-serif}
-button:hover{transform:translateY(-1px)}
-@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.card{animation:slideUp .4s ease-out}
-input:focus,select:focus,textarea:focus{outline:none;border-color:#0052cc!important;box-shadow:0 0 0 3px rgba(0,82,204,.15)}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#0041a3">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+
+  <!-- ✅ IMPORTANTES para /pwa/ -->
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icon-192.png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+
+  <!-- Fuente más rápida (sin @import dentro de <style>) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <title>Luconi Vouchers</title>
+
+  <!-- ✅ defer: no bloquea el render -->
+  <script defer src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script defer src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script defer src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'DM Sans',-apple-system,sans-serif}
+    input,select,textarea{font-family:'DM Sans',sans-serif}
+    button:hover{transform:translateY(-1px)}
+    @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .card{animation:slideUp .4s ease-out}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:#0052cc!important;box-shadow:0 0 0 3px rgba(0,82,204,.15)}
+  </style>
 </head>
+
 <body>
-<div id="root" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">Cargando…</div>
-<noscript>Necesitás habilitar JavaScript para usar esta app.</noscript>
+  <div id="root" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
+    Cargando…
+  </div>
+  <noscript>Necesitás habilitar JavaScript para usar esta app.</noscript>
 
-<script>
-// Firebase init
-firebase.initializeApp({
-  apiKey: "AIzaSyBuii4cGIR_6j8DQucQf-hhcwkq7hMTMrk",
-  authDomain: "voucer-luconi.firebaseapp.com",
-  projectId: "voucer-luconi",
-  storageBucket: "voucer-luconi.firebasestorage.app",
-  messagingSenderId: "565791994023",
-  appId: "1:565791994023:web:934c8469d57b50a2d2eb82",
-  measurementId: "G-6KT86PVH3E"
-});
+  <script>
+    // ✅ Para /pwa/ el SW debe registrarse relativo
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(function(e){
+        console.log('sw err', e);
+      });
+    }
 
-// ✅ ESTO ES LO QUE TE FALTA
-var db = firebase.firestore();
+    // Espera a que estén cargadas las libs (porque arriba están con defer)
+    window.addEventListener('DOMContentLoaded', function () {
+      // Firebase init
+      firebase.initializeApp({
+        apiKey: "AIzaSyBuii4cGIR_6j8DQucQf-hhcwkq7hMTMrk",
+        authDomain: "voucer-luconi.firebaseapp.com",
+        projectId: "voucer-luconi",
+        storageBucket: "voucer-luconi.firebasestorage.app",
+        messagingSenderId: "565791994023",
+        appId: "1:565791994023:web:934c8469d57b50a2d2eb82",
+        measurementId: "G-6KT86PVH3E"
+      });
 
-// ✅ Cache offline (acelera mucho)
-db.enablePersistence().catch(function(){});
+      // Firestore
+      window.db = firebase.firestore();
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(function(){});
-}
-</script>
-
-<script type="text/babel">
-var { useState, useEffect, useRef, useCallback } = React;
-
-var gid = function(){ return Math.random().toString(36).slice(2,10); };
-function fmtC(n){ return "$"+Number(n).toLocaleString("es-AR",{minimumFractionDigits:2}); }
-function fmtD(d){ return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}); }
-function fmtDS(d){ return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"}); }
-
-// === FIX FECHAS (LOCAL) para "hoy/mes/reportes" ===
-function pad2(n){ return String(n).padStart(2,"0"); }
-function localDateKey(d){
-  var x = new Date(d);
-  return x.getFullYear()+"-"+pad2(x.getMonth()+1)+"-"+pad2(x.getDate());
-}
-function localMonthKey(d){
-  var x = new Date(d);
-  return x.getFullYear()+"-"+pad2(x.getMonth()+1);
-}
-function todayStr(){ return localDateKey(new Date()); }
-function curMonth(){ return localMonthKey(new Date()); }
-
-function monthLabel(m){
-  var p=m.split("-");
-  var ms=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-  return ms[parseInt(p[1],10)-1]+" "+p[0];
-}
-
-// Firebase hook: real-time sync
-function useFirestore(collection, defVal) {
-  var [data, setData] = useState(defVal);
-  var [loaded, setLoaded] = useState(false);
-
-  useEffect(function() {
-    var unsub = db.collection(collection).doc("main").onSnapshot(function(doc) {
-      if (doc.exists) { setData(doc.data().items || defVal); }
-      setLoaded(true);
-    }, function(err) { console.error(collection, err); setLoaded(true); });
-    return unsub;
-  }, [collection]);
-
-  var save = useCallback(function(fn) {
-    setData(function(prev) {
-      var next = typeof fn === "function" ? fn(prev) : fn;
-      db.collection(collection).doc("main").set({ items: next }, { merge: true }).catch(function(e){ console.error("save",e); });
-      return next;
+      // Offline cache (si falla, no rompe)
+      try {
+        db.enablePersistence().catch(function(){});
+      } catch (e) {}
     });
-  }, [collection]);
+  </script>
 
-  return [data, save, loaded];
-}
+  <!-- ✅ Tu app sigue igual, solo que db viene de window.db -->
+  <script type="text/babel">
+    var { useState, useEffect, useRef, useCallback } = React;
 
-var BS=function(bg,col){return{background:bg,color:col,border:"none",borderRadius:10,padding:"12px 20px",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:14,cursor:"pointer"};};
-var IS={width:"100%",padding:"14px 16px",background:"#f0f4f8",border:"2px solid #dce3eb",borderRadius:12,color:"#1a1a2e",fontSize:15,fontFamily:"'DM Sans',sans-serif"};
-var LS={display:"block",fontSize:12,fontWeight:600,color:"#5a6a7a",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5};
+    // ✅ usamos la instancia inicializada arriba
+    var db = window.db;
 
-var DEFAULT_USERS=[
-  {id:"dev1",username:"developer",password:"dev2024",name:"Desarrollador",role:"dev"},
-  {id:"admin1",username:"admin",password:"admin123",name:"Administradora",role:"admin"},
-  {id:"recep1",username:"recepcion",password:"recep123",name:"Recepcionista",role:"recepcion"}
-];
-var ROLE_LABELS={dev:"🔧 Desarrollador",admin:"🔑 Administradora",recepcion:"🛒 Recepción"};
+    var gid = function(){ return Math.random().toString(36).slice(2,10); };
+    function fmtC(n){ return "$"+Number(n).toLocaleString("es-AR",{minimumFractionDigits:2}); }
+    function fmtD(d){ return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}); }
+    function fmtDS(d){ return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"}); }
 
-function SignaturePad(props){
-  var canvasRef=useRef(null),drawing=useRef(false),lastPos=useRef({x:0,y:0});
-
-  useEffect(function(){
-    var c=canvasRef.current,ctx=c.getContext("2d"),r=c.getBoundingClientRect();
-    c.width=r.width*2;c.height=r.height*2;
-    ctx.scale(2,2);
-    ctx.lineCap="round";
-    ctx.lineJoin="round";
-    ctx.lineWidth=2.5;
-    ctx.strokeStyle="#1a1a2e";
-  },[]);
-
-  function gp(ev){
-    var r=canvasRef.current.getBoundingClientRect(),t=ev.touches?ev.touches[0]:ev;
-    return{x:t.clientX-r.left,y:t.clientY-r.top};
-  }
-
-  return(
-    <div style={{background:"#fff",borderRadius:16,padding:20,boxShadow:"0 20px 60px rgba(0,0,0,.18)"}}>
-      <p style={{margin:"0 0 10px",fontSize:14,color:"#666",textAlign:"center"}}>✍️ Firmá en el recuadro</p>
-      <canvas ref={canvasRef} style={{width:"100%",height:150,border:"2px dashed #ccc",borderRadius:10,cursor:"crosshair",touchAction:"none",background:"#fafafa"}}
-        onMouseDown={function(e){e.preventDefault();drawing.current=true;lastPos.current=gp(e);}}
-        onMouseMove={function(e){if(!drawing.current)return;e.preventDefault();var ctx=canvasRef.current.getContext("2d"),p=gp(e);ctx.beginPath();ctx.moveTo(lastPos.current.x,lastPos.current.y);ctx.lineTo(p.x,p.y);ctx.stroke();lastPos.current=p;}}
-        onMouseUp={function(){drawing.current=false;}} onMouseLeave={function(){drawing.current=false;}}
-        onTouchStart={function(e){e.preventDefault();drawing.current=true;lastPos.current=gp(e);}}
-        onTouchMove={function(e){if(!drawing.current)return;e.preventDefault();var ctx=canvasRef.current.getContext("2d"),p=gp(e);ctx.beginPath();ctx.moveTo(lastPos.current.x,lastPos.current.y);ctx.lineTo(p.x,p.y);ctx.stroke();lastPos.current=p;}}
-        onTouchEnd={function(){drawing.current=false;}} />
-      <div style={{display:"flex",gap:10,marginTop:14}}>
-        <button onClick={function(){var c=canvasRef.current;c.getContext("2d").clearRect(0,0,c.width,c.height);}} style={BS("#e0e0e0","#333")}>Limpiar</button>
-        <button onClick={props.onCancel} style={BS("#e74c3c","#fff")}>Cancelar</button>
-        <button onClick={function(){props.onSave(canvasRef.current.toDataURL("image/png"));}} style={{...BS("#0052cc","#fff"),flex:1}}>Confirmar</button>
-      </div>
-    </div>
-  );
-}
-
-function SummaryCard(props){
-  return(<div style={{background:"#eef6ff",borderRadius:14,padding:18,marginBottom:12}}>
-    <div style={{fontWeight:700,fontSize:16,marginBottom:10}}>{props.name}</div>
-    <div style={{display:"grid",gridTemplateColumns:props.total>0?"1fr 1fr 1fr":"1fr 1fr",gap:10}}>
-      <div><div style={{fontSize:11,color:"#888"}}>Visitas</div><div style={{fontSize:20,fontWeight:700,color:"#0052cc"}}>{props.count}</div></div>
-      <div><div style={{fontSize:11,color:"#888"}}>Empleados</div><div style={{fontSize:20,fontWeight:700,color:"#0052cc"}}>{props.empCount}</div></div>
-      {props.total>0&&<div><div style={{fontSize:11,color:"#888"}}>Total</div><div style={{fontSize:20,fontWeight:700,color:"#27ae60"}}>{fmtC(props.total)}</div></div>}
-    </div>
-  </div>);
-}
-
-function genTicketHTML(tx,company,caja){
-  var bonos=tx.bonosUsed&&tx.bonosUsed.length>0?tx.bonosUsed.map(function(b){return b.label+": "+fmtC(b.amount);}).join(" | "):"—";
-  return'<html><head><meta charset="utf-8"><title>Ticket</title><style>body{font-family:Arial,sans-serif;max-width:350px;margin:0 auto;padding:20px;color:#222}.header{text-align:center;border-bottom:2px dashed #333;padding-bottom:12px;margin-bottom:16px}.header h1{font-size:20px;color:#0041a3;margin:0}.header p{font-size:11px;color:#888;margin:4px 0 0}.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dotted #ccc;font-size:13px}.row .label{color:#666;font-weight:600}.row .value{font-weight:700;text-align:right;max-width:60%}.caja{text-align:center;margin:18px 0;padding:14px;background:#0041a3;color:#fff;border-radius:10px;font-size:20px;font-weight:700}.firma{text-align:center;margin-top:16px}.firma img{max-height:60px}.footer{text-align:center;margin-top:20px;padding-top:12px;border-top:2px dashed #333;font-size:10px;color:#999}</style></head><body><div class="header"><h1>LUCONI</h1><p>Comprobante de Voucher</p></div><div class="row"><span class="label">Fecha:</span><span class="value">'+fmtD(tx.date)+'</span></div><div class="row"><span class="label">Empleado:</span><span class="value">'+tx.employeeName+'</span></div><div class="row"><span class="label">DNI:</span><span class="value">'+tx.employeeDni+'</span></div><div class="row"><span class="label">Empresa:</span><span class="value">'+(company||"—")+'</span></div>'+(tx.amount>0?'<div class="row"><span class="label">Monto:</span><span class="value">'+fmtC(tx.amount)+'</span></div>':'')+'<div class="row"><span class="label">Bonos:</span><span class="value">'+bonos+'</span></div><div class="caja">→ CAJA '+caja+' ←</div>'+(tx.signature?'<div class="firma"><p style="font-size:11px;color:#888;margin:0 0 6px">Firma:</p><img src="'+tx.signature+'"/></div>':'')+'<div class="footer">Supermercado Luconi · Ticket #'+tx.id.toUpperCase()+'</div></body></html>';
-}
-function genTicketText(tx,company,caja){
-  var l=["🛒 *LUCONI - Comprobante*","","📅 "+fmtD(tx.date),"👤 "+tx.employeeName,"🪪 DNI: "+tx.employeeDni,"🏢 "+(company||"—")];
-  if(tx.amount>0)l.push("💰 "+fmtC(tx.amount));
-  if(tx.bonosUsed&&tx.bonosUsed.length>0)l.push("🎁 "+tx.bonosUsed.map(function(b){return b.label+" "+fmtC(b.amount);}).join(", "));
-  l.push("","📦 *→ CAJA "+caja+" ←*","","Ticket #"+tx.id.toUpperCase());
-  return l.join("\n");
-}
-
-function App(){
-  var [users,setUsers,uL]=useFirestore("users",DEFAULT_USERS);
-  var [companies,setCompanies,cL]=useFirestore("companies",[]);
-  var [employees,setEmployees,eL]=useFirestore("employees",[]);
-  var [bonos,setBonos,bL]=useFirestore("bonos",[]);
-  var [transactions,setTransactions,tL]=useFirestore("transactions",[]);
-
-  var [currentUser,setCurrentUser]=useState(null);
-  var [loginUser,setLoginUser]=useState("");
-  var [loginPass,setLoginPass]=useState("");
-  var [loginError,setLoginError]=useState("");
-  var [view,setView]=useState("home");
-  var [toast,setToast]=useState(null);
-  var [modal,setModal]=useState(null);
-  var [coForm,setCoForm]=useState({name:""});
-  var [empForm,setEmpForm]=useState({name:"",dni:"",companyId:""});
-  var [bulkText,setBulkText]=useState("");
-  var [bulkCo,setBulkCo]=useState("");
-  var [searchDni,setSearchDni]=useState("");
-  var [found,setFound]=useState(null);
-  var [purchaseAmt,setPurchaseAmt]=useState("");
-  var [showSig,setShowSig]=useState(false);
-  var [selectedCaja,setSelectedCaja]=useState("1");
-  var [rMonth,setRMonth]=useState(curMonth());
-  var [rCo,setRCo]=useState("all");
-  var [bonoCo,setBonoCo]=useState("");
-  var [bonoEmpId,setBonoEmpId]=useState("");
-  var [bonoAmt,setBonoAmt]=useState("");
-  var [bonoLabel,setBonoLabel]=useState("");
-  var [bonoEmpSearch,setBonoEmpSearch]=useState("");
-  var [selectedBonos,setSelectedBonos]=useState([]);
-  var [bulkBonoText,setBulkBonoText]=useState("");
-  var [bulkBonoCo,setBulkBonoCo]=useState("");
-  var [bulkBonoLabel,setBulkBonoLabel]=useState("");
-  var [lastTicket,setLastTicket]=useState(null);
-  var [importCo,setImportCo]=useState("");
-  var fileRef=useRef(null);
-  var [myPwCur,setMyPwCur]=useState("");
-  var [myPwNew,setMyPwNew]=useState("");
-  var [myPwConf,setMyPwConf]=useState("");
-  var [resetPwId,setResetPwId]=useState("");
-  var [resetPwVal,setResetPwVal]=useState("");
-
-  var loaded=uL&&cL&&eL&&bL&&tL;
-  var isDev=currentUser&&currentUser.role==="dev";
-  var isAdmin=currentUser&&(currentUser.role==="admin"||currentUser.role==="dev");
-
-  function show(msg,type){setToast({msg:msg,type:type||"success"});setTimeout(function(){setToast(null);},3000);}
-  function doLogin(){
-    var u=users.find(function(x){return x.username===loginUser&&x.password===loginPass;});
-    if(!u){setLoginError("Usuario o contraseña incorrectos");return;}
-    setCurrentUser(u);setLoginUser("");setLoginPass("");setLoginError("");
-  }
-  function doLogout(){setCurrentUser(null);setView("home");}
-
-  function changeMyPw(){
-    if(!myPwCur||!myPwNew||!myPwConf){show("Completá todos los campos","error");return;}
-    if(myPwCur!==currentUser.password){show("Contraseña actual incorrecta","error");return;}
-    if(myPwNew!==myPwConf){show("No coinciden","error");return;}
-    if(myPwNew.length<4){show("Mínimo 4 caracteres","error");return;}
-    setUsers(function(p){return p.map(function(u){return u.id===currentUser.id?Object.assign({},u,{password:myPwNew}):u;});});
-    setCurrentUser(Object.assign({},currentUser,{password:myPwNew}));
-    setMyPwCur("");setMyPwNew("");setMyPwConf("");show("Contraseña cambiada ✓");
-  }
-  function resetOtherPw(){
-    if(!resetPwId||!resetPwVal){show("Seleccioná usuario y contraseña","error");return;}
-    if(resetPwVal.length<4){show("Mínimo 4 caracteres","error");return;}
-    setUsers(function(p){return p.map(function(u){return u.id===resetPwId?Object.assign({},u,{password:resetPwVal}):u;});});
-    setResetPwId("");setResetPwVal("");show("Contraseña reseteada ✓");
-  }
-  function resetApp(){
-    setModal({
-      title:"⚠️ RESETEAR APP",
-      msg:"Borra TODO: empresas, empleados, bonos y transacciones. ¿Seguro?",
-      onConfirm:function(){
-        setCompanies([]);setEmployees([]);setBonos([]);setTransactions([]);
-        setModal(null);show("App reseteada ✓");
-      }
-    });
-  }
-
-  function addCo(){
-    if(!coForm.name){show("Ingresá nombre","error");return;}
-    setCompanies(function(p){return[...p,{id:gid(),name:coForm.name}];});
-    setCoForm({name:""});show("Empresa agregada ✓");
-  }
-  function delCo(id){
-    setModal({
-      title:"¿Eliminar empresa?",
-      msg:"Se eliminan empleados y bonos.",
-      onConfirm:function(){
-        setCompanies(function(p){return p.filter(function(c){return c.id!==id;});});
-        setEmployees(function(p){return p.filter(function(e){return e.companyId!==id;});});
-        setBonos(function(p){return p.filter(function(b){return b.companyId!==id;});});
-        setModal(null);show("Eliminada");
-      }
-    });
-  }
-
-  // === FIX DNI duplicado: normaliza ===
-  function addEmp(){
-    if(!empForm.name||!empForm.dni||!empForm.companyId){show("Completá campos","error");return;}
-    var dn = empForm.dni.replace(/\D/g,"");
-    if(employees.some(function(e){return e.dni.replace(/\D/g,"")===dn;})){
-      show("DNI duplicado","error");return;
+    function pad2(n){ return String(n).padStart(2,"0"); }
+    function localDateKey(d){
+      var x = new Date(d);
+      return x.getFullYear()+"-"+pad2(x.getMonth()+1)+"-"+pad2(x.getDate());
     }
-    setEmployees(function(p){
-      return[...p,{id:gid(),name:empForm.name,dni:empForm.dni,companyId:empForm.companyId}];
-    });
-    setEmpForm({name:"",dni:"",companyId:empForm.companyId});show("Agregado ✓");
-  }
-
-  function addBulk(){
-    if(!bulkCo||!bulkText.trim()){show("Seleccioná empresa y pegá","error");return;}
-    var lines=bulkText.trim().split("\n").filter(Boolean),n=0,ne=[];
-    for(var i=0;i<lines.length;i++){
-      var parts=lines[i].split(/[,;\t]+/).map(function(s){return s.trim();});
-      if(parts.length>=2){
-        var nm=parts[0],dn=parts[1];
-        var cd = (dn||"").replace(/\D/g,"");
-        if(!employees.some(function(e){return e.dni.replace(/\D/g,"")===cd;})&&!ne.some(function(e){return e.dni.replace(/\D/g,"")===cd;})){
-          ne.push({id:gid(),name:nm,dni:dn,companyId:bulkCo});n++;
-        }
-      }
+    function localMonthKey(d){
+      var x = new Date(d);
+      return x.getFullYear()+"-"+pad2(x.getMonth()+1);
     }
-    setEmployees(function(p){return[...p,...ne];});
-    setBulkText("");show(n+" cargados ✓");
-  }
-  function delEmp(id){
-    setEmployees(function(p){return p.filter(function(e){return e.id!==id;});});
-    setBonos(function(p){return p.filter(function(b){return b.employeeId!==id;});});
-    show("Eliminado");
-  }
-
-  function getEB(eid){return bonos.filter(function(b){return b.employeeId===eid&&b.remainingBalance>0;});}
-  function getTB(eid){return getEB(eid).reduce(function(s,b){return s+b.remainingBalance;},0);}
-
-  function addBono(){
-    if(!bonoEmpId||!bonoAmt||parseFloat(bonoAmt)<=0){show("Falta empleado o monto","error");return;}
-    var emp=employees.find(function(e){return e.id===bonoEmpId;});if(!emp)return;
-    var amt=parseFloat(bonoAmt);
-    setBonos(function(p){
-      return[...p,{id:gid(),employeeId:bonoEmpId,companyId:emp.companyId,amount:amt,remainingBalance:amt,label:bonoLabel||"Bono",date:new Date().toISOString()}];
-    });
-    setBonoAmt("");setBonoLabel("");show("Bono cargado ✓");
-  }
-
-  function addBulkBonos(){
-    if(!bulkBonoCo||!bulkBonoText.trim()){show("Seleccioná empresa y pegá","error");return;}
-    var lines=bulkBonoText.trim().split("\n").filter(Boolean),nE=[],nB=[],eA=0,bA=0;
-
-    for(var i=0;i<lines.length;i++){
-      var parts=lines[i].split(/[,;\t]+/).map(function(s){return s.trim();});
-      if(parts.length<3)continue;
-      var nombre=parts[0],dni=parts[1],amt=parseFloat(parts[2]),lbl=parts[3]||bulkBonoLabel||"Bono";
-      if(!nombre||!dni||!amt||amt<=0)continue;
-
-      var cd=dni.replace(/\D/g,"");
-      var emp=employees.find(function(e){return e.companyId===bulkBonoCo&&e.dni.replace(/\D/g,"")===cd;});
-      var eid;
-
-      if(emp){eid=emp.id;}
-      else{
-        var fn=nE.find(function(e){return e.dni.replace(/\D/g,"")===cd;});
-        if(fn){eid=fn.id;}
-        else{eid=gid();nE.push({id:eid,name:nombre,dni:dni,companyId:bulkBonoCo});eA++;}
-      }
-
-      nB.push({id:gid(),employeeId:eid,companyId:bulkBonoCo,amount:amt,remainingBalance:amt,label:lbl,date:new Date().toISOString()});
-      bA++;
+    function todayStr(){ return localDateKey(new Date()); }
+    function curMonth(){ return localMonthKey(new Date()); }
+    function monthLabel(m){
+      var p=m.split("-");
+      var ms=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+      return ms[parseInt(p[1],10)-1]+" "+p[0];
     }
 
-    if(bA===0){show("Sin datos válidos","error");return;}
-    if(nE.length>0)setEmployees(function(p){return[...p,...nE];});
-    setBonos(function(p){return[...p,...nB];});
-    setBulkBonoText("");
-    show(bA+" bonos"+(eA>0?" + "+eA+" nuevos":"")+" ✓");
-  }
+    function useFirestore(collection, defVal) {
+      var [data, setData] = useState(defVal);
+      var [loaded, setLoaded] = useState(false);
 
-  function downloadPreforma(){
-    var csv="Nombre,DNI,Bono1_Nombre,Bono1_Monto,Bono2_Nombre,Bono2_Monto\nJuan Pérez,30123456,Bono mensual,50000,Bono cumpleaños,20000\nMaría López,28654321,Bono mensual,30000,,";
-    var b=new Blob([csv],{type:"text/csv;charset=utf-8;"});
-    var u=URL.createObjectURL(b);
-    var a=document.createElement("a");a.href=u;a.download="preforma_vouchers_luconi.csv";a.click();
-    URL.revokeObjectURL(u);show("Descargada ✓");
-  }
-  function downloadPreformaEmp(coId){
-    var ce=employees.filter(function(e){return e.companyId===coId;});
-    var n=(companies.find(function(c){return c.id===coId;})||{}).name||"emp";
-    var csv="Nombre,DNI,Bono1_Nombre,Bono1_Monto,Bono2_Nombre,Bono2_Monto\n"+ce.map(function(e){return e.name+","+e.dni+",,,,";}).join("\n");
-    var b=new Blob([csv],{type:"text/csv;charset=utf-8;"});
-    var u=URL.createObjectURL(b);
-    var a=document.createElement("a");a.href=u;a.download="preforma_"+n.replace(/\s/g,"_")+".csv";a.click();
-    URL.revokeObjectURL(u);show("Descargada ✓");
-  }
-  function shareWA(){
-    window.open("https://wa.me/?text="+encodeURIComponent("Hola! Te envío la preforma de vouchers de Supermercado Luconi.\n\nCompletar: Nombre, DNI, Bono 1 y Bono 2.\n\n🛒 Supermercado Luconi"),"_blank");
-  }
-  function shareEmail(){
-    window.open("mailto:?subject="+encodeURIComponent("Preforma Vouchers - Luconi")+"&body="+encodeURIComponent("Hola,\n\nAdjunto preforma de vouchers.\nCompletar: Nombre, DNI, Bono 1 y Bono 2.\n\nGracias!\nSupermercado Luconi"),"_self");
-  }
+      useEffect(function() {
+        var ref = db.collection(collection).doc("main");
+        var unsub = ref.onSnapshot(function(doc) {
+          if (doc.exists) {
+            setData(doc.data().items || defVal);
+          } else {
+            ref.set({ items: defVal }, { merge: true }).catch(function(e){
+              console.error("seed", collection, e);
+            });
+            setData(defVal);
+          }
+          setLoaded(true);
+        }, function(err) {
+          console.error(collection, err);
+          setLoaded(true);
+        });
+        return unsub;
+      }, [collection]);
 
-  // === FIX import CSV: acepta , o ; (mejor que split(",") ) ===
-  function importCSV(evt){
-    var file=evt.target.files[0];
-    if(!file||!importCo){show("Seleccioná empresa","error");return;}
-    var reader=new FileReader();
-    reader.onload=function(ev){
-      var lines=ev.target.result.split("\n").map(function(l){return l.trim();}).filter(Boolean);
-      if(lines.length<2){show("Vacío","error");return;}
+      var save = useCallback(function(fn) {
+        setData(function(prev) {
+          var next = typeof fn === "function" ? fn(prev) : fn;
+          db.collection(collection).doc("main").set({ items: next }, { merge: true })
+            .catch(function(e){ console.error("save", collection, e); });
+          return next;
+        });
+      }, [collection]);
 
-      var nE=[],nB=[],eA=0,bA=0;
-
-      for(var i=1;i<lines.length;i++){
-        var c=lines[i].split(/[;,]/).map(function(s){return s.trim();});
-        if(c.length<2||!c[0]||!c[1])continue;
-
-        var nm=c[0],dn=c[1];
-        var cd = dn.replace(/\D/g,"");
-
-        var ex=employees.some(function(e){return e.dni.replace(/\D/g,"")===cd;})||nE.some(function(e){return e.dni.replace(/\D/g,"")===cd;});
-        var eid;
-
-        if(!ex){eid=gid();nE.push({id:eid,name:nm,dni:dn,companyId:importCo});eA++;}
-        else{
-          var f=employees.find(function(e){return e.dni.replace(/\D/g,"")===cd;});
-          eid=f?f.id:nE.find(function(e){return e.dni.replace(/\D/g,"")===cd;}).id;
-        }
-
-        if(eid){
-          // columnas: Nombre, DNI, Bono1_Nombre, Bono1_Monto, Bono2_Nombre, Bono2_Monto
-          var b1a=parseFloat(c[3])||0,b2a=parseFloat(c[5])||0;
-          if(b1a>0){nB.push({id:gid(),employeeId:eid,companyId:importCo,amount:b1a,remainingBalance:b1a,label:c[2]||"Bono 1",date:new Date().toISOString()});bA++;}
-          if(b2a>0){nB.push({id:gid(),employeeId:eid,companyId:importCo,amount:b2a,remainingBalance:b2a,label:c[4]||"Bono 2",date:new Date().toISOString()});bA++;}
-        }
-      }
-
-      if(nE.length>0)setEmployees(function(p){return[...p,...nE];});
-      if(nB.length>0)setBonos(function(p){return[...p,...nB];});
-
-      show(eA+" empleados + "+bA+" bonos ✓");
-      if(fileRef.current)fileRef.current.value="";
-    };
-    reader.readAsText(file);
-  }
-
-  function searchEmp(){
-    var c=searchDni.replace(/\D/g,"");
-    var emp=employees.find(function(e){return e.dni.replace(/\D/g,"")===c;});
-    setFound(emp||null);
-    setPurchaseAmt("");setShowSig(false);setSelectedBonos([]);setSelectedCaja("1");
-    if(!emp)show("No encontrado","error");
-  }
-  function toggleBono(id){
-    setSelectedBonos(function(p){return p.includes(id)?p.filter(function(x){return x!==id;}):[...p,id];});
-  }
-
-  function registerPurchase(sig){
-    var amount=purchaseAmt?parseFloat(purchaseAmt):0,eb=getEB(found.id),bu=[];
-    if(eb.length>0&&amount>0){
-      var ub=selectedBonos.length>0?eb.filter(function(b){return selectedBonos.includes(b.id);}):eb;
-      var av=ub.reduce(function(s,b){return s+b.remainingBalance;},0);
-      if(amount>av){show("Saldo insuficiente","error");return;}
-      var rem=amount,upd=bonos.slice();
-      for(var i=0;i<ub.length;i++){
-        if(rem<=0)break;
-        var x=ub[i],idx=upd.findIndex(function(b){return b.id===x.id;}),dd=Math.min(rem,x.remainingBalance);
-        upd[idx]=Object.assign({},upd[idx],{remainingBalance:upd[idx].remainingBalance-dd});
-        bu.push({bonoId:x.id,amount:dd,label:x.label});
-        rem-=dd;
-      }
-      setBonos(upd);
+      return [data, save, loaded];
     }
 
-    // guardo ISO (ok), pero filtros son locales con localDateKey/localMonthKey
-    var tx={
-      id:gid(),
-      employeeId:found.id,
-      employeeName:found.name,
-      employeeDni:found.dni,
-      companyId:found.companyId,
-      amount:amount,
-      date:new Date().toISOString(),
-      signature:sig,
-      bonosUsed:bu,
-      caja:selectedCaja,
-      registeredBy:currentUser?currentUser.name:"?"
-    };
+    // =========================================================
+    // PEGÁ AQUÍ TODO TU CÓDIGO DESDE:
+    // var BS = ...;
+    // DEFAULT_USERS ...
+    // function SignaturePad...
+    // function App()...
+    // hasta el final:
+    // ReactDOM.createRoot(...).render(...)
+    // =========================================================
 
-    setTransactions(function(p){return[...p,tx];});
-    setLastTicket({tx:tx,company:(companies.find(function(c){return c.id===found.companyId;})||{}).name||"?",caja:selectedCaja});
-    show("Registrada ✓");
-    setFound(null);setSearchDni("");setPurchaseAmt("");setShowSig(false);setSelectedBonos([]);
-  }
-
-  // === FIX contadores: usan fecha local ===
-  function vToday(){
-    var k=todayStr();
-    return transactions.filter(function(t){return localDateKey(t.date)===k;}).length;
-  }
-  function uToday(){
-    var k=todayStr();
-    return new Set(transactions.filter(function(t){return localDateKey(t.date)===k;}).map(function(t){return t.employeeDni;})).size;
-  }
-  function vMonth(){
-    var k=curMonth();
-    return transactions.filter(function(t){return localMonthKey(t.date)===k;}).length;
-  }
-
-  // === FIX reportes: filtra por mes local ===
-  function rData(){
-    var f=transactions.filter(function(t){return localMonthKey(t.date)===rMonth;});
-    if(rCo!=="all")f=f.filter(function(t){return t.companyId===rCo;});
-    return f;
-  }
-
-  function rSumE(){
-    var d=rData(),r={};
-    for(var i=0;i<d.length;i++){
-      var t=d[i],co=companies.find(function(c){return c.id===t.companyId;}),n=co?co.name:"?";
-      if(!r[n])r[n]={total:0,count:0,emps:{}};
-      r[n].total+=t.amount;
-      r[n].count++;
-      r[n].emps[t.employeeDni]=1;
-    }
-    return Object.keys(r).map(function(n){
-      return{name:n,total:r[n].total,count:r[n].count,empCount:Object.keys(r[n].emps).length};
-    });
-  }
-
-  function exportPDF(){
-    var d=rData(),e=rSumE(),ml=monthLabel(rMonth),cn=rCo==="all"?"Todas":(companies.find(function(c){return c.id===rCo;})||{}).name;
-
-    var h='<html><head><meta charset="utf-8"><title>Reporte '+ml+'</title><style>body{font-family:Arial,sans-serif;padding:40px;color:#222}h1{color:#0041a3;font-size:22px}h2{color:#333;font-size:16px;margin:20px 0 8px}.sub{color:#666;font-size:13px;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#0041a3;color:#fff;padding:8px;text-align:left}td{padding:6px;border-bottom:1px solid #ddd}tr:nth-child(even){background:#f5f8fc}.sc{display:inline-block;background:#f0f4f8;border-radius:10px;padding:14px 20px;margin:0 10px 10px 0;text-align:center}.sc .n{font-size:24px;font-weight:bold;color:#0041a3}.sc .l{font-size:10px;color:#666}.fi{height:35px}.ft{margin-top:30px;font-size:10px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:10px}</style></head><body><h1>Luconi — '+ml+'</h1><p class="sub">'+cn+' · '+fmtDS(new Date())+'</p>';
-
-    if(e.length>0){
-      h+='<h2>Resumen</h2>';
-      for(var j=0;j<e.length;j++){
-        h+='<div class="sc"><div class="n">'+e[j].count+'</div><div class="l">Visitas</div></div><div class="sc"><div class="n">'+e[j].empCount+'</div><div class="l">Empleados</div></div>';
-        if(e[j].total>0)h+='<div class="sc"><div class="n">'+fmtC(e[j].total)+'</div><div class="l">Total</div></div>';
-        h+='<p style="font-weight:600;margin:4px 0 14px">'+e[j].name+'</p>';
-      }
-    }
-
-    h+='<h2>Detalle</h2>';
-    if(d.length===0)h+='<p>Sin visitas.</p>';
-    else{
-      h+='<table><thead><tr><th>Fecha</th><th>Empleado</th><th>DNI</th><th>Empresa</th><th>Monto</th><th>Bonos</th><th>Caja</th></tr></thead><tbody>';
-      for(var k=0;k<d.length;k++){
-        var t=d[k],co=companies.find(function(c){return c.id===t.companyId;});
-        var bl=t.bonosUsed&&t.bonosUsed.length>0?t.bonosUsed.map(function(b){return b.label+": "+fmtC(b.amount);}).join(", "):"—";
-        h+='<tr><td>'+fmtD(t.date)+'</td><td>'+t.employeeName+'</td><td>'+t.employeeDni+'</td><td>'+(co?co.name:"?")+'</td><td>'+(t.amount>0?fmtC(t.amount):"—")+'</td><td>'+bl+'</td><td>'+(t.caja||"—")+'</td></tr>';
-      }
-      h+='</tbody></table>';
-    }
-    h+='<div class="ft">Supermercado Luconi</div></body></html>';
-    var w=window.open("","_blank");
-    if(w){w.document.write(h);w.document.close();setTimeout(function(){w.print();},600);}
-  }
-
-  var filteredEmps=bonoCo?employees.filter(function(e){return e.companyId===bonoCo;}).filter(function(e){return!bonoEmpSearch||e.name.toLowerCase().includes(bonoEmpSearch.toLowerCase())||e.dni.includes(bonoEmpSearch);}):[];
-  var activeBonos=bonos.filter(function(b){return b.remainingBalance>0;});
-  var repE=rSumE(),repR=rData(),lastTx=transactions.slice().reverse().slice(0,8);
-  var otherUsers=users.filter(function(u){return u.role!=="dev";});
-  var adminNav=[{key:"home",icon:"🏠",l:"Inicio"},{key:"register",icon:"🛒",l:"Registrar"},{key:"bonos",icon:"🎁",l:"Bonos"},{key:"companies",icon:"🏢",l:"Empresas"},{key:"employees",icon:"👥",l:"Personal"},{key:"reports",icon:"📊",l:"Reportes"},{key:"settings",icon:"⚙️",l:"Config"}];
-  var recepNav=[{key:"home",icon:"🏠",l:"Inicio"},{key:"register",icon:"🛒",l:"Registrar"}];
-  var nav=isAdmin?adminNav:recepNav;
-
-  if(!loaded)return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#0041a3,#0052cc)"}}><div style={{textAlign:"center"}}><div style={{fontSize:48,marginBottom:12}}>🛒</div><p style={{color:"#fff",fontSize:18}}>Conectando...</p><p style={{color:"rgba(255,255,255,.6)",fontSize:12,marginTop:8}}>Sincronizando con la base de datos</p></div></div>;
-
-  if(!currentUser)return(
-    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0041a3,#0052cc)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif"}}>
-      <div style={{background:"#fff",borderRadius:24,padding:40,width:"90%",maxWidth:380,boxShadow:"0 30px 80px rgba(0,0,0,.3)"}}>
-        <div style={{textAlign:"center",marginBottom:30}}><div style={{fontSize:40,marginBottom:8}}>🛒</div><h1 style={{fontSize:24,color:"#0041a3",fontWeight:700}}>Luconi</h1><p style={{fontSize:13,color:"#888",marginTop:4}}>Sistema de Vouchers</p></div>
-        <label style={LS}>Usuario</label><input placeholder="usuario" value={loginUser} onChange={function(e){setLoginUser(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")doLogin();}} style={{...IS,marginBottom:12}} />
-        <label style={LS}>Contraseña</label><input type="password" placeholder="••••••" value={loginPass} onChange={function(e){setLoginPass(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")doLogin();}} style={{...IS,marginBottom:6}} />
-        {loginError&&<p style={{color:"#e74c3c",fontSize:13,marginBottom:10,textAlign:"center"}}>{loginError}</p>}
-        <button onClick={doLogin} style={{...BS("#0052cc","#fff"),width:"100%",padding:16,fontSize:16,marginTop:10}}>Ingresar</button>
-      </div>
-    </div>
-  );
-
-  return(
-    <div style={{minHeight:"100vh",background:"#f0f4f8",fontFamily:"'DM Sans',sans-serif",color:"#1a1a2e",paddingBottom:90}}>
-      <div style={{background:"linear-gradient(135deg,#0041a3,#0052cc)",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><h1 style={{fontSize:18,color:"#fff",fontWeight:700}}>Luconi — Vouchers</h1><p style={{fontSize:10,color:"rgba(255,255,255,.6)"}}>{currentUser.name} · ☁️ Online</p></div>
-        <button onClick={doLogout} style={{...BS("rgba(255,255,255,.15)","#fff"),fontSize:12,padding:"8px 14px"}}>Salir</button>
-      </div>
-
-      <div style={{maxWidth:600,margin:"0 auto",padding:"20px 16px"}}>
-
-        {lastTicket&&(
-          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-            <div className="card" style={{background:"#fff",borderRadius:20,padding:28,maxWidth:380,width:"100%"}}>
-              <h3 style={{textAlign:"center",fontSize:18,marginBottom:4}}>✅ Registrada</h3>
-              <div style={{textAlign:"center",background:"#0041a3",color:"#fff",borderRadius:14,padding:"16px 20px",margin:"16px 0",fontSize:28,fontWeight:700}}>→ CAJA {lastTicket.caja} ←</div>
-              <div style={{fontSize:14,color:"#444",lineHeight:1.8,marginBottom:16}}>
-                <div><strong>{lastTicket.tx.employeeName}</strong> — DNI {lastTicket.tx.employeeDni}</div>
-                <div>{lastTicket.company}</div>
-                {lastTicket.tx.amount>0&&<div>Monto: {fmtC(lastTicket.tx.amount)}</div>}
-              </div>
-              <div style={{display:"flex",gap:8,marginBottom:10}}>
-                <button
-                  onClick={function(){
-                    var w=window.open("","_blank");
-                    if(w){w.document.write(genTicketHTML(lastTicket.tx,lastTicket.company,lastTicket.caja));w.document.close();setTimeout(function(){w.print();},500);}
-                  }}
-                  style={{...BS("#0052cc","#fff"),flex:1,fontSize:13}}
-                >🖨️ Imprimir</button>
-                <button
-                  onClick={function(){window.open("https://wa.me/?text="+encodeURIComponent(genTicketText(lastTicket.tx,lastTicket.company,lastTicket.caja)),"_blank");}}
-                  style={{...BS("#25d366","#fff"),flex:1,fontSize:13}}
-                >📱 WhatsApp</button>
-              </div>
-              <button onClick={function(){setLastTicket(null);}} style={{...BS("#f0f4f8","#333"),width:"100%"}}>Cerrar</button>
-            </div>
-          </div>
-        )}
-
-        {view==="home"&&(
-          <div>
-            <div className="card" style={{background:"linear-gradient(135deg,#0052cc,#2684ff)",borderRadius:20,padding:28,marginBottom:20}}>
-              <h2 style={{color:"#fff",fontSize:18,fontWeight:700,marginBottom:18}}>Panel del Día</h2>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
-                {[{i:"🛒",v:vToday(),l:"Visitas hoy"},{i:"👤",v:uToday(),l:"Personas"},{i:"📅",v:vMonth(),l:"Mes"}].map(function(s,idx){
-                  return(
-                    <div key={idx} style={{background:"rgba(255,255,255,.15)",borderRadius:14,padding:"14px 10px",textAlign:"center"}}>
-                      <span style={{fontSize:22}}>{s.i}</span>
-                      <div style={{fontSize:26,fontWeight:700,color:"#fff",marginTop:4}}>{s.v}</div>
-                      <div style={{fontSize:11,color:"rgba(255,255,255,.75)"}}>{s.l}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <h3 style={{fontSize:15,fontWeight:600,color:"#0052cc",marginBottom:10}}>Últimas visitas</h3>
-            {lastTx.length===0&&<div style={{textAlign:"center",padding:40,color:"#999"}}><div style={{fontSize:48}}>📋</div><p>Sin visitas</p></div>}
-            {lastTx.map(function(t){
-              var co=companies.find(function(c){return c.id===t.companyId;});
-              return(
-                <div key={t.id} className="card" style={{background:"#fff",borderRadius:14,padding:"12px 16px",marginBottom:8,border:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <div>
-                    <div style={{fontWeight:600,fontSize:14}}>{t.employeeName}</div>
-                    <div style={{fontSize:12,color:"#888"}}>DNI {t.employeeDni} · {co?co.name:"?"} · Caja {t.caja||"?"}</div>
-                  </div>
-                  {t.amount>0&&<span style={{fontWeight:700,color:"#e74c3c",fontSize:14}}>{fmtC(t.amount)}</span>}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {view==="register"&&(
-          <div>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:20}}>🛒 Registrar Visita</h2>
-            <div className="card" style={{background:"#fff",borderRadius:18,padding:24,border:"1px solid #e2e8f0"}}>
-              <label style={LS}>DNI</label>
-              <div style={{display:"flex",gap:10,marginBottom:16}}>
-                <input type="text" placeholder="30123456" value={searchDni} onChange={function(e){setSearchDni(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")searchEmp();}} style={{...IS,flex:1}} />
-                <button onClick={searchEmp} style={BS("#0052cc","#fff")}>Buscar</button>
-              </div>
-
-              {found&&(
-                <div>
-                  <div style={{background:"#eef6ff",border:"1px solid #b3d4fc",borderRadius:14,padding:18,marginBottom:18}}>
-                    <div style={{fontSize:18,fontWeight:700,color:"#0052cc"}}>{found.name}</div>
-                    <div style={{fontSize:13,color:"#666",marginTop:4}}>DNI: {found.dni} · {(companies.find(function(c){return c.id===found.companyId;})||{}).name}</div>
-
-                    {getEB(found.id).length>0 ? (
-                      <div style={{marginTop:14}}>
-                        <div style={{fontSize:12,fontWeight:600,color:"#5a6a7a",marginBottom:8}}>
-                          BONOS — Total: <span style={{color:"#27ae60",fontSize:14}}>{fmtC(getTB(found.id))}</span>
-                        </div>
-                        {getEB(found.id).map(function(b){
-                          var sel=selectedBonos.includes(b.id);
-                          return(
-                            <label key={b.id} onClick={function(){toggleBono(b.id);}} style={{display:"flex",alignItems:"center",gap:10,background:sel?"#d4edda":"#f8f9fa",border:sel?"2px solid #27ae60":"2px solid #e2e8f0",borderRadius:10,padding:"10px 14px",marginBottom:6,cursor:"pointer"}}>
-                              <input type="checkbox" checked={sel} readOnly style={{width:18,height:18,accentColor:"#27ae60"}} />
-                              <div style={{flex:1}}>
-                                <div style={{fontWeight:600,fontSize:14}}>{b.label}</div>
-                                <div style={{fontSize:11,color:"#888"}}>{fmtDS(b.date)}</div>
-                              </div>
-                              <div style={{fontWeight:700,color:"#27ae60",fontSize:16}}>{fmtC(b.remainingBalance)}</div>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div style={{marginTop:10,fontSize:13,color:"#888",fontStyle:"italic"}}>Sin bonos</div>
-                    )}
-                  </div>
-
-                  {!showSig ? (
-                    <div>
-                      {getEB(found.id).length>0 && (
-                        <div>
-                          <label style={LS}>Monto</label>
-                          <input type="number" placeholder="0.00" value={purchaseAmt} onChange={function(e){setPurchaseAmt(e.target.value);}} style={{...IS,marginBottom:16,fontSize:20,fontWeight:700,textAlign:"center"}} />
-                        </div>
-                      )}
-
-                      <label style={LS}>Caja</label>
-                      <div style={{display:"flex",gap:10,marginBottom:18}}>
-                        <button onClick={function(){setSelectedCaja("1");}} style={{...BS(selectedCaja==="1"?"#0052cc":"#e2e8f0",selectedCaja==="1"?"#fff":"#333"),flex:1,fontSize:18,padding:16}}>🔵 Caja 1</button>
-                        <button onClick={function(){setSelectedCaja("2");}} style={{...BS(selectedCaja==="2"?"#0052cc":"#e2e8f0",selectedCaja==="2"?"#fff":"#333"),flex:1,fontSize:18,padding:16}}>🟢 Caja 2</button>
-                      </div>
-
-                      <button
-                        onClick={function(){
-                          if(getEB(found.id).length>0&&purchaseAmt){
-                            var a=parseFloat(purchaseAmt);
-                            if(a<=0){show("Inválido","error");return;}
-                            var u=selectedBonos.length>0?getEB(found.id).filter(function(b){return selectedBonos.includes(b.id);}):getEB(found.id);
-                            if(a>u.reduce(function(s,b){return s+b.remainingBalance;},0)){show("Saldo insuficiente","error");return;}
-                          }
-                          setShowSig(true);
-                        }}
-                        style={{...BS("#0052cc","#fff"),width:"100%",padding:16,fontSize:16}}
-                      >Continuar → Firma</button>
-                    </div>
-                  ) : (
-                    <SignaturePad onSave={registerPurchase} onCancel={function(){setShowSig(false);}} />
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {view==="bonos"&&isAdmin&&(
-          <div>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:20}}>🎁 Bonos</h2>
-
-            <div className="card" style={{background:"linear-gradient(135deg,#0052cc,#2684ff)",borderRadius:18,padding:24,marginBottom:20}}>
-              <h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:6}}>📄 Preforma</h3>
-              <p style={{fontSize:12,color:"rgba(255,255,255,.8)",marginBottom:16}}>Descargá, mandáselo a la empresa, importalo.</p>
-              <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-                <button onClick={downloadPreforma} style={{...BS("#fff","#0052cc"),flex:1,fontSize:12,padding:"10px 12px"}}>⬇️ Vacía</button>
-                {companies.length>0&&(
-                  <select onChange={function(e){if(e.target.value)downloadPreformaEmp(e.target.value);e.target.value="";}} style={{...IS,flex:1,fontSize:12,padding:"10px",background:"#fff"}}>
-                    <option value="">⬇️ Con empleados...</option>
-                    {companies.map(function(c){return<option key={c.id} value={c.id}>{c.name}</option>;})}
-                  </select>
-                )}
-              </div>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={shareWA} style={{...BS("rgba(255,255,255,.2)","#fff"),flex:1,fontSize:12,padding:"10px"}}>📱 WhatsApp</button>
-                <button onClick={shareEmail} style={{...BS("rgba(255,255,255,.2)","#fff"),flex:1,fontSize:12,padding:"10px"}}>✉️ Email</button>
-              </div>
-            </div>
-
-            <div className="card" style={{background:"#fff",borderRadius:18,padding:24,marginBottom:20,border:"2px solid #27ae60"}}>
-              <h3 style={{fontSize:15,fontWeight:600,color:"#27ae60",marginBottom:6}}>📥 Importar CSV</h3>
-              <p style={{fontSize:12,color:"#888",marginBottom:12}}>Subí el CSV completado.</p>
-              <select value={importCo} onChange={function(e){setImportCo(e.target.value);}} style={{...IS,marginBottom:12}}>
-                <option value="">Empresa...</option>
-                {companies.map(function(c){return<option key={c.id} value={c.id}>{c.name}</option>;})}
-              </select>
-              <input ref={fileRef} type="file" accept=".csv,.txt" onChange={importCSV} style={{display:"none"}} />
-              <button onClick={function(){if(!importCo){show("Seleccioná empresa","error");return;}if(fileRef.current)fileRef.current.click();}} style={{...BS("#27ae60","#fff"),width:"100%",fontSize:15,padding:14}}>📂 Seleccionar CSV</button>
-            </div>
-
-            <div className="card" style={{background:"#fff",borderRadius:18,padding:24,marginBottom:20,border:"1px solid #e2e8f0"}}>
-              <h3 style={{fontSize:15,fontWeight:600,color:"#0052cc",marginBottom:14}}>Bono individual</h3>
-              <select value={bonoCo} onChange={function(e){setBonoCo(e.target.value);setBonoEmpId("");}} style={{...IS,marginBottom:10}}>
-                <option value="">Empresa...</option>
-                {companies.map(function(c){return<option key={c.id} value={c.id}>{c.name}</option>;})}
-              </select>
-
-              {bonoCo&&(
-                <div>
-                  <input placeholder="Buscar..." value={bonoEmpSearch} onChange={function(e){setBonoEmpSearch(e.target.value);}} style={{...IS,marginBottom:8}} />
-                  <div style={{maxHeight:150,overflowY:"auto",marginBottom:14,border:"1px solid #e2e8f0",borderRadius:10}}>
-                    {filteredEmps.map(function(emp){
-                      return(
-                        <div key={emp.id} onClick={function(){setBonoEmpId(emp.id);}} style={{padding:"10px 14px",cursor:"pointer",background:bonoEmpId===emp.id?"#eef6ff":"#fff",borderBottom:"1px solid #f0f0f0"}}>
-                          <div style={{fontWeight:600,fontSize:14,color:bonoEmpId===emp.id?"#0052cc":"#333"}}>{emp.name}</div>
-                          <div style={{fontSize:12,color:"#888"}}>DNI: {emp.dni}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <input placeholder="Motivo..." value={bonoLabel} onChange={function(e){setBonoLabel(e.target.value);}} style={{...IS,marginBottom:10}} />
-              <input type="number" placeholder="Monto" value={bonoAmt} onChange={function(e){setBonoAmt(e.target.value);}} style={{...IS,marginBottom:14}} />
-              <button onClick={addBono} style={{...BS("#27ae60","#fff"),width:"100%"}}>Cargar</button>
-            </div>
-
-            <div className="card" style={{background:"#fff",borderRadius:18,padding:24,marginBottom:20,border:"1px solid #e2e8f0"}}>
-              <h3 style={{fontSize:15,fontWeight:600,color:"#0052cc",marginBottom:6}}>📋 Carga rápida</h3>
-              <div style={{background:"#fffbeb",border:"1px solid #fbbf24",borderRadius:10,padding:12,marginBottom:14,fontSize:12,color:"#92400e",lineHeight:1.5}}>
-                <code style={{background:"#fef3c7",padding:"2px 6px",borderRadius:4}}>Nombre, DNI, Monto, Motivo</code><br/>Si no existe se crea.
-              </div>
-              <select value={bulkBonoCo} onChange={function(e){setBulkBonoCo(e.target.value);}} style={{...IS,marginBottom:10}}>
-                <option value="">Empresa...</option>
-                {companies.map(function(c){return<option key={c.id} value={c.id}>{c.name}</option>;})}
-              </select>
-              <textarea placeholder={"Juan Pérez, 30123456, 50000, Bono fiestas\nMaría López, 28654321, 30000"} value={bulkBonoText} onChange={function(e){setBulkBonoText(e.target.value);}} rows={4} style={{...IS,marginBottom:14,resize:"vertical",fontFamily:"monospace",fontSize:13}} />
-              <button onClick={addBulkBonos} style={{...BS("#27ae60","#fff"),width:"100%"}}>Cargar</button>
-            </div>
-
-            <h3 style={{fontSize:15,fontWeight:600,color:"#0052cc",marginBottom:10}}>Activos</h3>
-            {activeBonos.length===0&&<p style={{textAlign:"center",color:"#999",padding:20}}>Sin bonos</p>}
-
-            {companies.map(function(co){
-              var cb=activeBonos.filter(function(b){return b.companyId===co.id;});
-              if(cb.length===0)return null;
-              var byE={};
-              for(var i=0;i<cb.length;i++){if(!byE[cb[i].employeeId])byE[cb[i].employeeId]=[];byE[cb[i].employeeId].push(cb[i]);}
-
-              return(
-                <div key={co.id} style={{marginBottom:20}}>
-                  <h4 style={{fontSize:13,fontWeight:600,color:"#5a6a7a",marginBottom:8}}>{co.name}</h4>
-                  {Object.keys(byE).map(function(eid){
-                    var emp=employees.find(function(e){return e.id===eid;});
-                    if(!emp)return null;
-                    return(
-                      <div key={eid} className="card" style={{background:"#fff",borderRadius:12,padding:"12px 16px",marginBottom:6,border:"1px solid #e2e8f0"}}>
-                        <div style={{fontWeight:600,fontSize:14,marginBottom:6}}>{emp.name} <span style={{fontSize:12,color:"#888"}}>DNI {emp.dni}</span></div>
-                        {byE[eid].map(function(b){
-                          return(
-                            <div key={b.id} style={{display:"flex",justifyContent:"space-between",background:"#f8f9fa",borderRadius:8,padding:"8px 12px",marginBottom:4}}>
-                              <div>
-                                <span style={{fontWeight:600,fontSize:13}}>{b.label}</span>
-                                <span style={{fontSize:11,color:"#888",marginLeft:8}}>{fmtDS(b.date)}</span>
-                              </div>
-                              <div style={{fontWeight:700,color:"#27ae60",fontSize:14}}>{fmtC(b.remainingBalance)}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {view==="companies"&&isAdmin&&(
-          <div>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:20}}>🏢 Empresas</h2>
-            <div className="card" style={{background:"#fff",borderRadius:18,padding:24,marginBottom:20,border:"1px solid #e2e8f0"}}>
-              <input placeholder="Nombre" value={coForm.name} onChange={function(e){setCoForm({name:e.target.value});}} style={{...IS,marginBottom:14}} />
-              <button onClick={addCo} style={{...BS("#0052cc","#fff"),width:"100%"}}>Agregar</button>
-            </div>
-
-            {companies.map(function(c){
-              return(
-                <div key={c.id} className="card" style={{background:"#fff",borderRadius:14,padding:"16px 18px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",border:"1px solid #e2e8f0"}}>
-                  <div>
-                    <div style={{fontWeight:600}}>{c.name}</div>
-                    <div style={{fontSize:12,color:"#888"}}>{employees.filter(function(e){return e.companyId===c.id;}).length} empleados</div>
-                  </div>
-                  <button onClick={function(){delCo(c.id);}} style={{...BS("#fee2e2","#e74c3c"),fontSize:12,padding:"8px 14px"}}>Eliminar</button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {view==="employees"&&isAdmin&&(
-          <div>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:20}}>👥 Personal</h2>
-
-            <div className="card" style={{background:"#fff",borderRadius:18,padding:24,marginBottom:16,border:"1px solid #e2e8f0"}}>
-              <input placeholder="Nombre" value={empForm.name} onChange={function(e){setEmpForm(Object.assign({},empForm,{name:e.target.value}));}} style={{...IS,marginBottom:10}} />
-              <input placeholder="DNI" value={empForm.dni} onChange={function(e){setEmpForm(Object.assign({},empForm,{dni:e.target.value}));}} style={{...IS,marginBottom:10}} />
-              <select value={empForm.companyId} onChange={function(e){setEmpForm(Object.assign({},empForm,{companyId:e.target.value}));}} style={{...IS,marginBottom:14}}>
-                <option value="">Empresa...</option>
-                {companies.map(function(c){return<option key={c.id} value={c.id}>{c.name}</option>;})}
-              </select>
-              <button onClick={addEmp} style={{...BS("#0052cc","#fff"),width:"100%"}}>Agregar</button>
-            </div>
-
-            <div className="card" style={{background:"#fff",borderRadius:18,padding:24,marginBottom:20,border:"1px solid #e2e8f0"}}>
-              <h3 style={{fontSize:15,fontWeight:600,color:"#0052cc",marginBottom:6}}>📋 Masiva</h3>
-              <div style={{background:"#eff6ff",border:"1px solid #93c5fd",borderRadius:10,padding:12,marginBottom:14,fontSize:12,color:"#1e40af"}}>
-                <code style={{background:"#dbeafe",padding:"2px 6px",borderRadius:4}}>Nombre, DNI</code> — Bonos en 🎁
-              </div>
-              <select value={bulkCo} onChange={function(e){setBulkCo(e.target.value);}} style={{...IS,marginBottom:10}}>
-                <option value="">Empresa...</option>
-                {companies.map(function(c){return<option key={c.id} value={c.id}>{c.name}</option>;})}
-              </select>
-              <textarea placeholder={"Juan Pérez, 30123456\nMaría López, 28654321"} value={bulkText} onChange={function(e){setBulkText(e.target.value);}} rows={4} style={{...IS,marginBottom:14,resize:"vertical",fontFamily:"monospace",fontSize:13}} />
-              <button onClick={addBulk} style={{...BS("#27ae60","#fff"),width:"100%"}}>Cargar</button>
-            </div>
-
-            {companies.map(function(co){
-              var ce=employees.filter(function(e){return e.companyId===co.id;});
-              if(ce.length===0)return null;
-              return(
-                <div key={co.id} style={{marginBottom:20}}>
-                  <h3 style={{fontSize:14,fontWeight:600,color:"#0052cc",marginBottom:10}}>{co.name} ({ce.length})</h3>
-                  {ce.map(function(emp){
-                    var nb=getEB(emp.id).length;
-                    return(
-                      <div key={emp.id} className="card" style={{background:"#fff",borderRadius:12,padding:"12px 16px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center",border:"1px solid #e2e8f0"}}>
-                        <div>
-                          <div style={{fontWeight:600,fontSize:14}}>{emp.name}</div>
-                          <div style={{fontSize:12,color:"#888"}}>DNI: {emp.dni}{nb>0?" · "+fmtC(getTB(emp.id)):""}</div>
-                        </div>
-                        <button onClick={function(){delEmp(emp.id);}} style={{background:"none",border:"none",color:"#e74c3c",cursor:"pointer",fontSize:18}}>✕</button>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {view==="reports"&&isAdmin&&(
-          <div>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <h2 style={{fontSize:20,fontWeight:700}}>📊 Reportes</h2>
-              <button onClick={exportPDF} style={{...BS("#0052cc","#fff"),fontSize:13,padding:"10px 18px"}}>📄 PDF</button>
-            </div>
-
-            <div className="card" style={{background:"#fff",borderRadius:18,padding:24,marginBottom:20,border:"1px solid #e2e8f0"}}>
-              <div style={{display:"flex",gap:10,marginBottom:18}}>
-                <div style={{flex:1}}>
-                  <label style={LS}>Mes</label>
-                  <input type="month" value={rMonth} onChange={function(e){setRMonth(e.target.value);}} style={IS} />
-                </div>
-                <div style={{flex:1}}>
-                  <label style={LS}>Empresa</label>
-                  <select value={rCo} onChange={function(e){setRCo(e.target.value);}} style={IS}>
-                    <option value="all">Todas</option>
-                    {companies.map(function(c){return<option key={c.id} value={c.id}>{c.name}</option>;})}
-                  </select>
-                </div>
-              </div>
-
-              {repE.length===0&&<p style={{textAlign:"center",color:"#999",padding:30}}>Sin datos</p>}
-              {repE.map(function(e){return<SummaryCard key={e.name} name={e.name} count={e.count} empCount={e.empCount} total={e.total} />;})}
-            </div>
-
-            {repR.map(function(t){
-              var co=companies.find(function(c){return c.id===t.companyId;});
-              return(
-                <div key={t.id} className="card" style={{background:"#fff",borderRadius:12,padding:"14px 16px",marginBottom:6,border:"1px solid #e2e8f0"}}>
-                  <div style={{display:"flex",justifyContent:"space-between"}}>
-                    <span style={{fontWeight:600}}>{t.employeeName} <span style={{fontSize:12,color:"#888"}}>Caja {t.caja}</span></span>
-                    {t.amount>0&&<span style={{fontWeight:700,color:"#27ae60"}}>{fmtC(t.amount)}</span>}
-                  </div>
-                  {t.bonosUsed&&t.bonosUsed.length>0&&<div style={{fontSize:11,color:"#0052cc",marginTop:4}}>{t.bonosUsed.map(function(b){return b.label+": "+fmtC(b.amount);}).join(" · ")}</div>}
-                  <div style={{fontSize:12,color:"#888",marginTop:4,display:"flex",justifyContent:"space-between"}}>
-                    <span>{co?co.name:"?"}</span><span>{fmtD(t.date)}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {view==="settings"&&isAdmin&&(
-          <div>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:20}}>⚙️ Configuración</h2>
-
-            <div className="card" style={{background:"#fff",borderRadius:18,padding:24,marginBottom:20,border:"1px solid #e2e8f0"}}>
-              <h3 style={{fontSize:15,fontWeight:600,color:"#0052cc",marginBottom:14}}>🔒 Cambiar mi contraseña</h3>
-              <input type="password" placeholder="Actual" value={myPwCur} onChange={function(e){setMyPwCur(e.target.value);}} style={{...IS,marginBottom:10}} />
-              <input type="password" placeholder="Nueva" value={myPwNew} onChange={function(e){setMyPwNew(e.target.value);}} style={{...IS,marginBottom:10}} />
-              <input type="password" placeholder="Repetir" value={myPwConf} onChange={function(e){setMyPwConf(e.target.value);}} style={{...IS,marginBottom:14}} />
-              <button onClick={changeMyPw} style={{...BS("#0052cc","#fff"),width:"100%"}}>Cambiar</button>
-            </div>
-
-            {isDev&&(
-              <div className="card" style={{background:"#fff",borderRadius:18,padding:24,marginBottom:20,border:"2px solid #f59e0b"}}>
-                <h3 style={{fontSize:15,fontWeight:600,color:"#f59e0b",marginBottom:14}}>🔧 Resetear contraseña</h3>
-                <select value={resetPwId} onChange={function(e){setResetPwId(e.target.value);}} style={{...IS,marginBottom:10}}>
-                  <option value="">Usuario...</option>
-                  {otherUsers.map(function(u){return<option key={u.id} value={u.id}>{u.name} (@{u.username})</option>;})}
-                </select>
-                <input type="password" placeholder="Nueva contraseña" value={resetPwVal} onChange={function(e){setResetPwVal(e.target.value);}} style={{...IS,marginBottom:14}} />
-                <button onClick={resetOtherPw} style={{...BS("#f59e0b","#fff"),width:"100%"}}>Resetear</button>
-              </div>
-            )}
-
-            <h3 style={{fontSize:15,fontWeight:600,color:"#0052cc",marginBottom:10}}>Usuarios</h3>
-            {users.map(function(u){
-              return(
-                <div key={u.id} className="card" style={{background:"#fff",borderRadius:12,padding:"12px 16px",marginBottom:6,border:"1px solid #e2e8f0"}}>
-                  <div style={{fontWeight:600}}>{u.name}</div>
-                  <div style={{fontSize:12,color:"#888"}}>@{u.username} · {ROLE_LABELS[u.role]}</div>
-                </div>
-              );
-            })}
-
-            {isDev&&(
-              <div style={{marginTop:30,padding:20,background:"#fef2f2",borderRadius:14,border:"2px solid #ef4444"}}>
-                <h3 style={{fontSize:15,fontWeight:600,color:"#ef4444",marginBottom:8}}>⚠️ Zona peligrosa</h3>
-                <p style={{fontSize:12,color:"#991b1b",marginBottom:14}}>Borra empresas, empleados, bonos y transacciones.</p>
-                <button onClick={resetApp} style={{...BS("#ef4444","#fff"),width:"100%"}}>Resetear App</button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {toast&&(
-        <div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",zIndex:1100,background:toast.type==="error"?"#e74c3c":"#27ae60",color:"#fff",padding:"14px 28px",borderRadius:14,fontWeight:600,fontSize:14,boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
-          {toast.msg}
-        </div>
-      )}
-
-      {modal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:1050,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <div style={{background:"#fff",borderRadius:20,padding:28,maxWidth:360,width:"100%"}}>
-            <h3 style={{fontSize:18,marginBottom:10}}>{modal.title}</h3>
-            <p style={{color:"#666",fontSize:14,marginBottom:20}}>{modal.msg}</p>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={function(){setModal(null);}} style={{...BS("#f0f4f8","#333"),flex:1}}>Cancelar</button>
-              <button onClick={modal.onConfirm} style={{...BS("#e74c3c","#fff"),flex:1}}>Confirmar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:"rgba(255,255,255,.97)",backdropFilter:"blur(20px)",borderTop:"1px solid #e2e8f0",padding:"6px 4px 12px",display:"flex",justifyContent:"center",gap:1,zIndex:100}}>
-        {nav.map(function(n){
-          var a=view===n.key;
-          return(
-            <button key={n.key} onClick={function(){setView(n.key);}} style={{background:a?"#eef6ff":"transparent",border:a?"1px solid #b3d4fc":"1px solid transparent",borderRadius:12,padding:"6px 9px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-              <span style={{fontSize:16}}>{n.icon}</span>
-              <span style={{fontSize:8,fontWeight:600,color:a?"#0052cc":"#999"}}>{n.l}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
-</script>
+    // 👇 EJEMPLO DE RENDER FINAL (DEJALO IGUAL AL TUYO)
+    // ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+  </script>
 </body>
 </html>
