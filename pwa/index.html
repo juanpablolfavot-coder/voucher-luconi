@@ -101,12 +101,11 @@
 
     window.__debug && window.__debug("Babel OK ✅ | React OK=" + (!!React) + " | db=" + (!!db));
 
-    // Styles helpers (simples)
+    // Styles helpers
     var BS=function(bg,col){return{background:bg,color:col,border:"none",borderRadius:12,padding:"12px 16px",fontWeight:700,cursor:"pointer"};};
     var IS={width:"100%",padding:"14px 16px",background:"#f0f4f8",border:"2px solid #dce3eb",borderRadius:12,color:"#1a1a2e",fontSize:15};
     var LS={display:"block",fontSize:12,fontWeight:700,color:"#5a6a7a",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5};
 
-    // Usuarios default (igual a tu idea original)
     var DEFAULT_USERS=[
       {id:"dev1",username:"developer",password:"dev2024",name:"Desarrollador",role:"dev"},
       {id:"admin1",username:"admin",password:"admin123",name:"Administradora",role:"admin"},
@@ -156,7 +155,6 @@
       return [data, save, loaded];
     }
 
-    // ======= APP BASE (NO SE CLAVA) =======
     function App(){
       // Solo users para mostrar login rápido
       var [users,setUsers,uL] = useFirestore("users", DEFAULT_USERS);
@@ -217,25 +215,22 @@
         );
       }
 
-      // ========= TU APP REAL =========
-      // Acá es donde pegás tu UI grande (home/register/bonos/etc).
-      // Por ahora dejo una pantalla simple para confirmar que entra.
-
+      // Pantalla simple para confirmar que entró
       return (
         <div style={{minHeight:"100vh",padding:20}}>
           <div className="card" style={{maxWidth:520,margin:"0 auto"}}>
             <h2 style={{fontSize:18,fontWeight:800,marginBottom:6}}>✅ App cargó</h2>
             <div style={{color:"#666",marginBottom:16}}>Usuario: <b>{currentUser.name}</b></div>
-
             <button onClick={doLogout} style={{...BS("#e74c3c","#fff"),width:"100%"}}>Salir</button>
-
-            <div style={{marginTop:14,fontSize:12,color:"#333"}}>
-              Ahora pegá tu App completa acá adentro (donde dice “TU APP REAL”).
-            </div>
           </div>
         </div>
       );
     }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+  </script>
+</body>
+</html>
 
     ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
   </script>
