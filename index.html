@@ -9,16 +9,12 @@
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <title>Luconi Vouchers</title>
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- React UMD -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <!-- Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -34,10 +30,7 @@
   </style>
 </head>
 <body>
-
-<div id="root" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
-  Cargando…
-</div>
+<div id="root" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">Cargando…</div>
 <noscript>Necesitás habilitar JavaScript para usar esta app.</noscript>
 
 <!-- ========= Firebase init ========= -->
@@ -45,7 +38,6 @@
 (function(){
   window.__APP_MODE__ = "boot";
   window.__DB__ = null;
-  window.fsdb = null;
 
   var firebaseConfig = {
     apiKey: "AIzaSyDk33-d7Xcj2mrsg-OEZdVZEleh8HMvC4o",
@@ -61,7 +53,6 @@
     console.warn("[Luconi] Firestore OFF -> Local mode:", reason);
     window.__APP_MODE__ = "local";
     window.__DB__ = null;
-    window.fsdb = null;
   }
 
   try {
@@ -69,27 +60,17 @@
     try {
       var db = firebase.firestore();
       window.__DB__ = db;
-      window.fsdb = db;
       window.__APP_MODE__ = "firestore";
-
       db.enablePersistence({ synchronizeTabs: true }).catch(function(err){
         console.warn("[Luconi] persistence disabled:", err && err.code ? err.code : err);
       });
-
-      db.collection("__health").doc("ping").get().then(function(){
-      }).catch(function(e){
+      db.collection("__health").doc("ping").get().then(function(){}).catch(function(e){
         if (e && (e.code === "permission-denied" || e.code === "unauthenticated")) {
           setLocalMode("Firestore rules block read (" + e.code + ")");
-        } else {
-          console.warn("[Luconi] health check warn:", e);
         }
       });
-    } catch (e2) {
-      setLocalMode("firestore init error");
-    }
-  } catch (e1) {
-    setLocalMode("firebase init error");
-  }
+    } catch (e2) { setLocalMode("firestore init error"); }
+  } catch (e1) { setLocalMode("firebase init error"); }
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(function(){});
@@ -97,169 +78,216 @@
 })();
 </script>
 
-<!-- ========= Utils global (para DB) ========= -->
-<script>
-function gid(){ return Math.random().toString(36).slice(2,10); }
-
-var DB = {
-  online: navigator.onLine,
-  syncing: false,
-  configured: function () { return typeof fsdb !== "undefined" && !!fsdb; },
-  _mainRef: function (table) { return fsdb.collection(table).doc("main"); },
-  _getItems: function (table) {
-    return this._mainRef(table).get().then(function (doc) {
-      var d = doc.exists ? (doc.data() || {}) : {};
-      return Array.isArray(d.items) ? d.items : [];
-    });
-  },
-  _setItems: function (table, items) {
-    return this._mainRef(table).set({ items: items }, { merge: true }).then(function () { return items; });
-  },
-  select: function (table) {
-    if (!this.configured()) return Promise.reject("no_firestore");
-    return this._getItems(table);
-  },
-  selectTx: function () { return this.select("transactions"); },
-  update: function (table, id, data) {
-    if (!this.configured()) return Promise.reject("no_firestore");
-    if (!id) return Promise.reject("missing_id");
-    var self = this;
-    return self._getItems(table).then(function (items) {
-      var idx = items.findIndex(function (x) { return x && x.id === id; });
-      if (idx === -1) return items;
-      items[idx] = Object.assign({}, items[idx], data || {});
-      return self._setItems(table, items);
-    }).then(function () { return []; });
-  },
-  upsert: function (table, data) {
-    if (!this.configured()) return Promise.reject("no_firestore");
-    var arr = Array.isArray(data) ? data : [data];
-    var self = this;
-    return self._getItems(table).then(function (items) {
-      arr.forEach(function (item) {
-        if (!item) return;
-        if (!item.id) item.id = gid();
-        var idx = items.findIndex(function (x) { return x && x.id === item.id; });
-        if (idx === -1) items.push(item);
-        else items[idx] = Object.assign({}, items[idx], item);
-      });
-      return self._setItems(table, items);
-    }).then(function () { return arr; });
-  },
-  del: function (table, id) {
-    if (!this.configured()) return Promise.reject("no_firestore");
-    if (!id) return Promise.reject("missing_id");
-    var self = this;
-    return self._getItems(table).then(function (items) {
-      items = items.filter(function (x) { return x && x.id !== id; });
-      return self._setItems(table, items);
-    }).then(function () { return []; });
-  },
-  delWhere: function (table, col, val) {
-    if (!this.configured()) return Promise.reject("no_firestore");
-    var self = this;
-    return self._getItems(table).then(function (items) {
-      items = items.filter(function (x) { return !(x && x[col] === val); });
-      return self._setItems(table, items);
-    }).then(function () { return []; });
-  }
-};
-</script>
-
-<!-- ========= App React ========= -->
+<!-- ========= App ========= -->
 <script type="text/babel">
 var { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 // ========= Utils =========
-var gid = window.gid;
+function gid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
 function fmtC(n){ return "$"+Number(n).toLocaleString("es-AR",{minimumFractionDigits:2}); }
 function fmtD(d){ return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}); }
 function fmtDS(d){ return new Date(d).toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"}); }
 function pad2(n){ return String(n).padStart(2,"0"); }
-function localDateKey(d){ var x = new Date(d); return x.getFullYear()+"-"+pad2(x.getMonth()+1)+"-"+pad2(x.getDate()); }
-function localMonthKey(d){ var x = new Date(d); return x.getFullYear()+"-"+pad2(x.getMonth()+1); }
+function localDateKey(d){ var x=new Date(d); return x.getFullYear()+"-"+pad2(x.getMonth()+1)+"-"+pad2(x.getDate()); }
+function localMonthKey(d){ var x=new Date(d); return x.getFullYear()+"-"+pad2(x.getMonth()+1); }
 function todayStr(){ return localDateKey(new Date()); }
 function curMonth(){ return localMonthKey(new Date()); }
 function monthLabel(m){ var p=m.split("-"); var ms=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]; return ms[parseInt(p[1],10)-1]+" "+p[0]; }
 
-// ========= UI styles =========
 var BS=function(bg,col){return{background:bg,color:col,border:"none",borderRadius:10,padding:"12px 20px",fontWeight:600,fontSize:14,cursor:"pointer",transition:"transform .08s ease"};};
 var IS={width:"100%",padding:"14px 16px",background:"#f0f4f8",border:"2px solid #dce3eb",borderRadius:12,color:"#1a1a2e",fontSize:15};
 var LS={display:"block",fontSize:12,fontWeight:700,color:"#5a6a7a",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5};
 
-// ========= Default users =========
 var DEFAULT_USERS=[
   {id:"dev1",username:"developer",password:"dev2024",name:"Desarrollador",role:"dev"},
   {id:"admin1",username:"admin",password:"admin123",name:"Administradora",role:"admin"},
   {id:"recep1",username:"recepcion",password:"recep123",name:"Recepcionista",role:"recepcion"}
 ];
-var ROLE_LABELS={dev:"🔧 Desarrollador",admin:"🔑 Administradora",recepcion:"🛒 Recepción"};
 
-// ========= Local storage helpers =========
-function lsKey(collection){ return "luconi_"+collection+"_main"; }
-function lsRead(collection, defVal){
-  try{ var raw = localStorage.getItem(lsKey(collection)); if(!raw) return defVal; var obj = JSON.parse(raw); return (obj && obj.items) ? obj.items : defVal; }catch(e){ return defVal; }
+// =============================================
+// NUEVO: Hook useCollection — 1 doc por registro
+// =============================================
+// Cada item es un documento individual en Firestore.
+// collection("users") -> doc("dev1"), doc("admin1"), etc.
+// Esto elimina el límite de 1MB por documento.
+// =============================================
+
+function lsKey(col){ return "luconi_v2_"+col; }
+function lsRead(col, def){
+  try{ var r=localStorage.getItem(lsKey(col)); return r?JSON.parse(r):def; }catch(e){ return def; }
 }
-function lsWrite(collection, items){
-  try{ localStorage.setItem(lsKey(collection), JSON.stringify({ items: items })); }catch(e){}
+function lsWrite(col, items){
+  try{ localStorage.setItem(lsKey(col), JSON.stringify(items)); }catch(e){}
 }
 
-// ========= Firestore/local hook =========
-function useStore(collection, defVal) {
-  var [data, setData] = useState(defVal);
+function useCollection(collection, defaultItems) {
+  var [data, setData] = useState([]);
   var [loaded, setLoaded] = useState(false);
+  var defaultItems_ = defaultItems || [];
 
   useEffect(function(){
     var mode = window.__APP_MODE__;
     var db = window.__DB__;
 
+    // LOCAL MODE
     if(mode !== "firestore" || !db){
-      var initial = lsRead(collection, defVal);
-      if(initial === defVal && Array.isArray(defVal) && defVal.length > 0){
-        lsWrite(collection, defVal);
-        initial = defVal;
+      var stored = lsRead(collection, null);
+      if(!stored && defaultItems_.length > 0){
+        lsWrite(collection, defaultItems_);
+        setData(defaultItems_);
+      } else {
+        setData(stored || []);
       }
-      setData(initial);
       setLoaded(true);
       return;
     }
 
-    var unsub = db.collection(collection).doc("main").onSnapshot(function(doc){
-      if(doc.exists){
-        setData((doc.data() && doc.data().items) ? doc.data().items : defVal);
-      }else{
-        db.collection(collection).doc("main").set({ items: defVal }, { merge: true })
-          .catch(function(e){ console.warn("seed fail -> fallback local", collection, e); window.__APP_MODE__ = "local"; var initial = lsRead(collection, defVal); setData(initial); });
-        setData(defVal);
+    // FIRESTORE MODE: listen to entire collection
+    var unsub = db.collection(collection).onSnapshot(function(snapshot){
+      var items = [];
+      snapshot.forEach(function(doc){
+        var d = doc.data();
+        d.id = doc.id;
+        items.push(d);
+      });
+
+      // Seed defaults if empty
+      if(items.length === 0 && defaultItems_.length > 0){
+        var batch = db.batch();
+        defaultItems_.forEach(function(item){
+          var ref = db.collection(collection).doc(item.id);
+          batch.set(ref, item);
+        });
+        batch.commit().catch(function(e){
+          console.warn("seed fail", collection, e);
+          window.__APP_MODE__ = "local";
+          lsWrite(collection, defaultItems_);
+          setData(defaultItems_);
+        });
+        // snapshot listener will fire again after seed
+      } else {
+        setData(items);
+        // Also cache locally for offline
+        lsWrite(collection, items);
       }
       setLoaded(true);
     }, function(err){
-      console.warn("firestore snapshot err -> fallback local", collection, err);
+      console.warn("snapshot err -> local", collection, err);
       window.__APP_MODE__ = "local";
-      var initial = lsRead(collection, defVal);
-      setData(initial);
+      setData(lsRead(collection, defaultItems_));
       setLoaded(true);
     });
 
-    return function(){ try{unsub && unsub();}catch(e){} };
+    return function(){ try{ unsub(); }catch(e){} };
   }, [collection]);
 
-  var save = useCallback(function(fn){
-    setData(function(prev){
-      var next = (typeof fn === "function") ? fn(prev) : fn;
-      var mode = window.__APP_MODE__;
-      var db = window.__DB__;
-      if(mode === "firestore" && db){
-        db.collection(collection).doc("main").set({ items: next }, { merge: true })
-          .catch(function(e){ console.warn("save fail -> fallback local", collection, e); window.__APP_MODE__ = "local"; lsWrite(collection, next); });
-      } else {
-        lsWrite(collection, next);
-      }
-      return next;
-    });
+  // ADD one or more docs
+  var add = useCallback(function(items){
+    var arr = Array.isArray(items) ? items : [items];
+    arr.forEach(function(item){ if(!item.id) item.id = gid(); });
+    var mode = window.__APP_MODE__;
+    var db = window.__DB__;
+
+    if(mode === "firestore" && db){
+      var batch = db.batch();
+      arr.forEach(function(item){
+        batch.set(db.collection(collection).doc(item.id), item);
+      });
+      batch.commit().catch(function(e){
+        console.warn("add fail -> local", e);
+        setData(function(p){ var n=[...p,...arr]; lsWrite(collection,n); return n; });
+      });
+    } else {
+      setData(function(p){ var n=[...p,...arr]; lsWrite(collection,n); return n; });
+    }
   }, [collection]);
 
-  return [data, save, loaded];
+  // UPDATE a doc by id
+  var update = useCallback(function(id, fields){
+    var mode = window.__APP_MODE__;
+    var db = window.__DB__;
+
+    if(mode === "firestore" && db){
+      db.collection(collection).doc(id).update(fields).catch(function(e){
+        console.warn("update fail -> local", e);
+        setData(function(p){
+          var n=p.map(function(x){ return x.id===id?Object.assign({},x,fields):x; });
+          lsWrite(collection,n); return n;
+        });
+      });
+    } else {
+      setData(function(p){
+        var n=p.map(function(x){ return x.id===id?Object.assign({},x,fields):x; });
+        lsWrite(collection,n); return n;
+      });
+    }
+  }, [collection]);
+
+  // REMOVE a doc by id
+  var remove = useCallback(function(id){
+    var mode = window.__APP_MODE__;
+    var db = window.__DB__;
+
+    if(mode === "firestore" && db){
+      db.collection(collection).doc(id).delete().catch(function(e){
+        console.warn("del fail -> local", e);
+        setData(function(p){ var n=p.filter(function(x){return x.id!==id;}); lsWrite(collection,n); return n; });
+      });
+    } else {
+      setData(function(p){ var n=p.filter(function(x){return x.id!==id;}); lsWrite(collection,n); return n; });
+    }
+  }, [collection]);
+
+  // REMOVE by field match
+  var removeWhere = useCallback(function(field, val){
+    var mode = window.__APP_MODE__;
+    var db = window.__DB__;
+
+    if(mode === "firestore" && db){
+      db.collection(collection).where(field, "==", val).get().then(function(snap){
+        var batch = db.batch();
+        snap.forEach(function(doc){ batch.delete(doc.ref); });
+        return batch.commit();
+      }).catch(function(e){
+        console.warn("delWhere fail -> local", e);
+        setData(function(p){ var n=p.filter(function(x){return x[field]!==val;}); lsWrite(collection,n); return n; });
+      });
+    } else {
+      setData(function(p){ var n=p.filter(function(x){return x[field]!==val;}); lsWrite(collection,n); return n; });
+    }
+  }, [collection]);
+
+  // CLEAR all docs
+  var clearAll = useCallback(function(){
+    var mode = window.__APP_MODE__;
+    var db = window.__DB__;
+
+    if(mode === "firestore" && db){
+      db.collection(collection).get().then(function(snap){
+        var batch = db.batch();
+        snap.forEach(function(doc){ batch.delete(doc.ref); });
+        return batch.commit();
+      }).catch(function(e){ console.warn("clearAll fail", e); });
+    }
+    setData([]);
+    lsWrite(collection, []);
+  }, [collection]);
+
+  return { data: data, loaded: loaded, add: add, update: update, remove: remove, removeWhere: removeWhere, clearAll: clearAll };
+}
+
+// ========= Signature storage (separate collection) =========
+// Firmas se guardan aparte para que las transacciones sean livianas
+function saveSig(txId, sigData){
+  var mode = window.__APP_MODE__;
+  var db = window.__DB__;
+  if(mode === "firestore" && db){
+    db.collection("signatures").doc(txId).set({ data: sigData }).catch(function(){});
+  }
+  try{ localStorage.setItem("sig_"+txId, sigData); }catch(e){}
+}
+function getSig(txId){
+  try{ return localStorage.getItem("sig_"+txId)||null; }catch(e){ return null; }
 }
 
 // ========= Components =========
@@ -308,7 +336,7 @@ function SummaryCard(props){
 
 function genTicketHTML(tx,company,caja){
   var bonos=tx.bonosUsed&&tx.bonosUsed.length>0?tx.bonosUsed.map(function(b){return b.label+": "+fmtC(b.amount);}).join(" | "):"—";
-  return '<html><head><meta charset="utf-8"><title>Ticket</title><style>body{font-family:Arial,sans-serif;max-width:350px;margin:0 auto;padding:20px;color:#222}.header{text-align:center;border-bottom:2px dashed #333;padding-bottom:12px;margin-bottom:16px}.header h1{font-size:20px;color:#0041a3;margin:0}.header p{font-size:11px;color:#888;margin:4px 0 0}.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dotted #ccc;font-size:13px}.row .label{color:#666;font-weight:600}.row .value{font-weight:700;text-align:right;max-width:60%}.caja{text-align:center;margin:18px 0;padding:14px;background:#0041a3;color:#fff;border-radius:10px;font-size:20px;font-weight:700}.firma{text-align:center;margin-top:16px}.firma img{max-height:60px}.footer{text-align:center;margin-top:20px;padding-top:12px;border-top:2px dashed #333;font-size:10px;color:#999}</style></head><body><div class="header"><h1>LUCONI</h1><p>Comprobante de Voucher</p></div><div class="row"><span class="label">Fecha:</span><span class="value">'+fmtD(tx.date)+'</span></div><div class="row"><span class="label">Empleado:</span><span class="value">'+tx.employeeName+'</span></div><div class="row"><span class="label">DNI:</span><span class="value">'+tx.employeeDni+'</span></div><div class="row"><span class="label">Empresa:</span><span class="value">'+(company||"—")+'</span></div>'+(tx.amount>0?'<div class="row"><span class="label">Total:</span><span class="value">'+fmtC(tx.amount)+'</span></div>':'')+'<div class="row"><span class="label">Bonos:</span><span class="value">'+bonos+'</span></div><div class="caja">→ CAJA '+caja+' ←</div>'+(tx.signature?'<div class="firma"><p style="font-size:11px;color:#888;margin:0 0 6px">Firma:</p><img src="'+tx.signature+'"/></div>':'')+'<div class="footer">Supermercado Luconi · Ticket #'+tx.id.toUpperCase()+'</div></body></html>';
+  return '<html><head><meta charset="utf-8"><title>Ticket</title><style>body{font-family:Arial,sans-serif;max-width:350px;margin:0 auto;padding:20px;color:#222}.header{text-align:center;border-bottom:2px dashed #333;padding-bottom:12px;margin-bottom:16px}.header h1{font-size:20px;color:#0041a3;margin:0}.header p{font-size:11px;color:#888;margin:4px 0 0}.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dotted #ccc;font-size:13px}.row .label{color:#666;font-weight:600}.row .value{font-weight:700;text-align:right;max-width:60%}.caja{text-align:center;margin:18px 0;padding:14px;background:#0041a3;color:#fff;border-radius:10px;font-size:20px;font-weight:700}.firma{text-align:center;margin-top:16px}.firma img{max-height:60px}.footer{text-align:center;margin-top:20px;padding-top:12px;border-top:2px dashed #333;font-size:10px;color:#999}</style></head><body><div class="header"><h1>LUCONI</h1><p>Comprobante de Voucher</p></div><div class="row"><span class="label">Fecha:</span><span class="value">'+fmtD(tx.date)+'</span></div><div class="row"><span class="label">Empleado:</span><span class="value">'+tx.employeeName+'</span></div><div class="row"><span class="label">DNI:</span><span class="value">'+tx.employeeDni+'</span></div><div class="row"><span class="label">Empresa:</span><span class="value">'+(company||"—")+'</span></div>'+(tx.amount>0?'<div class="row"><span class="label">Total:</span><span class="value">'+fmtC(tx.amount)+'</span></div>':'')+'<div class="row"><span class="label">Bonos:</span><span class="value">'+bonos+'</span></div><div class="caja">&rarr; CAJA '+caja+' &larr;</div>'+(tx.hasSig?'<div class="firma"><p style="font-size:11px;color:#888;margin:0 0 6px">Firma digital registrada</p></div>':'')+'<div class="footer">Supermercado Luconi &middot; Ticket #'+tx.id.toUpperCase()+'</div></body></html>';
 }
 
 function genTicketText(tx,company,caja){
@@ -321,11 +349,17 @@ function genTicketText(tx,company,caja){
 
 // ========= App =========
 function App(){
-  var [users,setUsers,uL]=useStore("users",DEFAULT_USERS);
-  var [companies,setCompanies,cL]=useStore("companies",[]);
-  var [employees,setEmployees,eL]=useStore("employees",[]);
-  var [bonos,setBonos,bL]=useStore("bonos",[]);
-  var [transactions,setTransactions,tL]=useStore("transactions",[]);
+  var usersCol = useCollection("users", DEFAULT_USERS);
+  var companiesCol = useCollection("companies");
+  var employeesCol = useCollection("employees");
+  var bonosCol = useCollection("bonos");
+  var transCol = useCollection("transactions");
+
+  var users = usersCol.data;
+  var companies = companiesCol.data;
+  var employees = employeesCol.data;
+  var bonos = bonosCol.data;
+  var transactions = transCol.data;
 
   var [currentUser,setCurrentUser]=useState(null);
   var [loginUser,setLoginUser]=useState("");
@@ -362,7 +396,7 @@ function App(){
   var [resetPwId,setResetPwId]=useState("");
   var [resetPwVal,setResetPwVal]=useState("");
 
-  var loaded=uL&&cL&&eL&&bL&&tL;
+  var loaded = usersCol.loaded && companiesCol.loaded && employeesCol.loaded && bonosCol.loaded && transCol.loaded;
   var isDev=currentUser&&currentUser.role==="dev";
   var isAdmin=currentUser&&(currentUser.role==="admin"||currentUser.role==="dev");
 
@@ -380,7 +414,7 @@ function App(){
     if(myPwCur!==currentUser.password){show("Contraseña actual incorrecta","error");return;}
     if(myPwNew!==myPwConf){show("No coinciden","error");return;}
     if(myPwNew.length<4){show("Mínimo 4 caracteres","error");return;}
-    setUsers(function(p){return p.map(function(u){return u.id===currentUser.id?Object.assign({},u,{password:myPwNew}):u;});});
+    usersCol.update(currentUser.id, {password:myPwNew});
     setCurrentUser(Object.assign({},currentUser,{password:myPwNew}));
     setMyPwCur("");setMyPwNew("");setMyPwConf("");show("Contraseña cambiada ✓");
   }
@@ -388,7 +422,7 @@ function App(){
   function resetOtherPw(){
     if(!resetPwId||!resetPwVal){show("Seleccioná usuario y contraseña","error");return;}
     if(resetPwVal.length<4){show("Mínimo 4 caracteres","error");return;}
-    setUsers(function(p){return p.map(function(u){return u.id===resetPwId?Object.assign({},u,{password:resetPwVal}):u;});});
+    usersCol.update(resetPwId, {password:resetPwVal});
     setResetPwId("");setResetPwVal("");show("Contraseña reseteada ✓");
   }
 
@@ -397,7 +431,10 @@ function App(){
       title:"⚠️ RESETEAR APP",
       msg:"Borra TODO: empresas, empleados, bonos y transacciones. ¿Seguro?",
       onConfirm:function(){
-        setCompanies([]);setEmployees([]);setBonos([]);setTransactions([]);
+        companiesCol.clearAll();
+        employeesCol.clearAll();
+        bonosCol.clearAll();
+        transCol.clearAll();
         setModal(null);show("App reseteada ✓");
       }
     });
@@ -405,18 +442,18 @@ function App(){
 
   function addCo(){
     if(!coForm.name){show("Ingresá nombre","error");return;}
-    setCompanies(function(p){return[...p,{id:gid(),name:coForm.name}];});
+    companiesCol.add({id:gid(),name:coForm.name});
     setCoForm({name:""});show("Empresa agregada ✓");
   }
 
   function delCo(id){
     setModal({
       title:"¿Eliminar empresa?",
-      msg:"Se eliminan empleados y bonos.",
+      msg:"Se eliminan empleados y bonos asociados.",
       onConfirm:function(){
-        setCompanies(function(p){return p.filter(function(c){return c.id!==id;});});
-        setEmployees(function(p){return p.filter(function(e){return e.companyId!==id;});});
-        setBonos(function(p){return p.filter(function(b){return b.companyId!==id;});});
+        companiesCol.remove(id);
+        employeesCol.removeWhere("companyId", id);
+        bonosCol.removeWhere("companyId", id);
         setModal(null);show("Eliminada");
       }
     });
@@ -424,36 +461,33 @@ function App(){
 
   function addEmp(){
     if(!empForm.name||!empForm.dni||!empForm.companyId){show("Completá campos","error");return;}
-    var dn = empForm.dni.replace(/\D/g,"");
+    var dn=empForm.dni.replace(/\D/g,"");
     if(employees.some(function(e){return e.dni.replace(/\D/g,"")===dn;})){
       show("DNI duplicado","error");return;
     }
-    setEmployees(function(p){
-      return[...p,{id:gid(),name:empForm.name,dni:empForm.dni,companyId:empForm.companyId}];
-    });
+    employeesCol.add({id:gid(),name:empForm.name,dni:empForm.dni,companyId:empForm.companyId});
     setEmpForm({name:"",dni:"",companyId:empForm.companyId});show("Agregado ✓");
   }
 
   function addBulk(){
     if(!bulkCo||!bulkText.trim()){show("Seleccioná empresa y pegá","error");return;}
-    var lines=bulkText.trim().split("\n").filter(Boolean),n=0,ne=[];
+    var lines=bulkText.trim().split("\n").filter(Boolean),ne=[],n=0;
     for(var i=0;i<lines.length;i++){
       var parts=lines[i].split(/[,;\t]+/).map(function(s){return s.trim();});
       if(parts.length>=2){
-        var nm=parts[0],dn=parts[1];
-        var cd = (dn||"").replace(/\D/g,"");
+        var nm=parts[0],dn=parts[1],cd=(dn||"").replace(/\D/g,"");
         if(!employees.some(function(e){return e.dni.replace(/\D/g,"")===cd;})&&!ne.some(function(e){return e.dni.replace(/\D/g,"")===cd;})){
           ne.push({id:gid(),name:nm,dni:dn,companyId:bulkCo});n++;
         }
       }
     }
-    setEmployees(function(p){return[...p,...ne];});
+    if(ne.length>0) employeesCol.add(ne);
     setBulkText("");show(n+" cargados ✓");
   }
 
   function delEmp(id){
-    setEmployees(function(p){return p.filter(function(e){return e.id!==id;});});
-    setBonos(function(p){return p.filter(function(b){return b.employeeId!==id;});});
+    employeesCol.remove(id);
+    bonosCol.removeWhere("employeeId", id);
     show("Eliminado");
   }
 
@@ -464,9 +498,7 @@ function App(){
     if(!bonoEmpId||!bonoAmt||parseFloat(bonoAmt)<=0){show("Falta empleado o monto","error");return;}
     var emp=employees.find(function(e){return e.id===bonoEmpId;});if(!emp)return;
     var amt=parseFloat(bonoAmt);
-    setBonos(function(p){
-      return[...p,{id:gid(),employeeId:bonoEmpId,companyId:emp.companyId,amount:amt,remainingBalance:amt,label:bonoLabel||"Bono",date:new Date().toISOString()}];
-    });
+    bonosCol.add({id:gid(),employeeId:bonoEmpId,companyId:emp.companyId,amount:amt,remainingBalance:amt,label:bonoLabel||"Bono",date:new Date().toISOString()});
     setBonoAmt("");setBonoLabel("");show("Bono cargado ✓");
   }
 
@@ -491,8 +523,8 @@ function App(){
       bA++;
     }
     if(bA===0){show("Sin datos válidos","error");return;}
-    if(nE.length>0)setEmployees(function(p){return[...p,...nE];});
-    setBonos(function(p){return[...p,...nB];});
+    if(nE.length>0) employeesCol.add(nE);
+    bonosCol.add(nB);
     setBulkBonoText("");
     show(bA+" bonos"+(eA>0?" + "+eA+" nuevos":"")+" ✓");
   }
@@ -500,8 +532,7 @@ function App(){
   function downloadPreforma(){
     var csv="Nombre,DNI,Bono1_Nombre,Bono1_Monto,Bono2_Nombre,Bono2_Monto\nJuan Pérez,30123456,Bono mensual,50000,Bono cumpleaños,20000\nMaría López,28654321,Bono mensual,30000,,";
     var b=new Blob([csv],{type:"text/csv;charset=utf-8;"});
-    var u=URL.createObjectURL(b);
-    var a=document.createElement("a");a.href=u;a.download="preforma_vouchers_luconi.csv";a.click();
+    var u=URL.createObjectURL(b); var a=document.createElement("a");a.href=u;a.download="preforma_vouchers_luconi.csv";a.click();
     URL.revokeObjectURL(u);show("Descargada ✓");
   }
 
@@ -510,8 +541,7 @@ function App(){
     var n=(companies.find(function(c){return c.id===coId;})||{}).name||"emp";
     var csv="Nombre,DNI,Bono1_Nombre,Bono1_Monto,Bono2_Nombre,Bono2_Monto\n"+ce.map(function(e){return e.name+","+e.dni+",,,,";}).join("\n");
     var b=new Blob([csv],{type:"text/csv;charset=utf-8;"});
-    var u=URL.createObjectURL(b);
-    var a=document.createElement("a");a.href=u;a.download="preforma_"+n.replace(/\s/g,"_")+".csv";a.click();
+    var u=URL.createObjectURL(b); var a=document.createElement("a");a.href=u;a.download="preforma_"+n.replace(/\s/g,"_")+".csv";a.click();
     URL.revokeObjectURL(u);show("Descargada ✓");
   }
 
@@ -534,8 +564,7 @@ function App(){
       for(var i=1;i<lines.length;i++){
         var c=lines[i].split(/[;,]/).map(function(s){return s.trim();});
         if(c.length<2||!c[0]||!c[1])continue;
-        var nm=c[0],dn=c[1];
-        var cd = dn.replace(/\D/g,"");
+        var nm=c[0],dn=c[1],cd=dn.replace(/\D/g,"");
         var ex=employees.some(function(e){return e.dni.replace(/\D/g,"")===cd;})||nE.some(function(e){return e.dni.replace(/\D/g,"")===cd;});
         var eid;
         if(!ex){eid=gid();nE.push({id:eid,name:nm,dni:dn,companyId:importCo});eA++;}
@@ -549,8 +578,8 @@ function App(){
           if(b2a>0){nB.push({id:gid(),employeeId:eid,companyId:importCo,amount:b2a,remainingBalance:b2a,label:c[4]||"Bono 2",date:new Date().toISOString()});bA++;}
         }
       }
-      if(nE.length>0)setEmployees(function(p){return[...p,...nE];});
-      if(nB.length>0)setBonos(function(p){return[...p,...nB];});
+      if(nE.length>0) employeesCol.add(nE);
+      if(nB.length>0) bonosCol.add(nB);
       show(eA+" empleados + "+bA+" bonos ✓");
       if(fileRef.current)fileRef.current.value="";
     };
@@ -560,10 +589,7 @@ function App(){
   function searchEmp(){
     var c=searchDni.replace(/\D/g,"");
     var emp=employees.find(function(e){return e.dni.replace(/\D/g,"")===c;});
-    setFound(emp||null);
-    setShowSig(false);
-    setSelectedBonos([]);
-    setSelectedCaja("1");
+    setFound(emp||null); setShowSig(false); setSelectedBonos([]); setSelectedCaja("1");
     if(!emp)show("No encontrado","error");
   }
 
@@ -572,34 +598,36 @@ function App(){
   }
 
   function registerPurchase(sig){
-    var eb = getEB(found.id);
-    var ub = [];
-    if(eb.length > 0){
-      ub = selectedBonos.length > 0 ? eb.filter(function(b){ return selectedBonos.includes(b.id); }) : eb;
+    var eb=getEB(found.id);
+    var ub=[];
+    if(eb.length>0){
+      ub=selectedBonos.length>0?eb.filter(function(b){return selectedBonos.includes(b.id);}):eb;
     }
-    var bu = [];
-    var total = 0;
-    if(ub.length > 0){
-      var upd = bonos.slice();
+    var bu=[],total=0;
+    if(ub.length>0){
       for(var i=0;i<ub.length;i++){
-        var x = ub[i];
-        var idx = upd.findIndex(function(b){ return b.id === x.id; });
-        if(idx === -1) continue;
-        var dd = Number(upd[idx].remainingBalance) || 0;
-        if(dd <= 0) continue;
-        upd[idx] = Object.assign({}, upd[idx], { remainingBalance: 0 });
-        bu.push({ bonoId: x.id, amount: dd, label: x.label });
-        total += dd;
+        var x=ub[i];
+        var dd=Number(x.remainingBalance)||0;
+        if(dd<=0)continue;
+        // Update each bono individually
+        bonosCol.update(x.id, {remainingBalance:0});
+        bu.push({bonoId:x.id,amount:dd,label:x.label});
+        total+=dd;
       }
-      setBonos(upd);
     }
+    var txId=gid();
     var tx={
-      id:gid(), employeeId:found.id, employeeName:found.name, employeeDni:found.dni,
-      companyId:found.companyId, amount: total, date:new Date().toISOString(),
-      signature:sig, bonosUsed:bu, caja:selectedCaja, registeredBy:currentUser?currentUser.name:"?"
+      id:txId, employeeId:found.id, employeeName:found.name, employeeDni:found.dni,
+      companyId:found.companyId, amount:total, date:new Date().toISOString(),
+      hasSig:!!sig, bonosUsed:bu, caja:selectedCaja,
+      registeredBy:currentUser?currentUser.name:"?"
     };
-    setTransactions(function(p){return[...p,tx];});
-    setLastTicket({ tx:tx, company:(companies.find(function(c){return c.id===found.companyId;})||{}).name||"?", caja:selectedCaja });
+    // Save transaction (without signature data - keeps it small)
+    transCol.add(tx);
+    // Save signature separately
+    if(sig) saveSig(txId, sig);
+
+    setLastTicket({tx:tx,company:(companies.find(function(c){return c.id===found.companyId;})||{}).name||"?",caja:selectedCaja});
     show("Registrada ✓");
     setFound(null);setSearchDni("");setShowSig(false);setSelectedBonos([]);
   }
@@ -628,7 +656,7 @@ function App(){
 
   function exportPDF(){
     var d=rData(),e=rSumE(),ml=monthLabel(rMonth),cn=rCo==="all"?"Todas":(companies.find(function(c){return c.id===rCo;})||{}).name;
-    var h='<html><head><meta charset="utf-8"><title>Reporte '+ml+'</title><style>body{font-family:Arial,sans-serif;padding:40px;color:#222}h1{color:#0041a3;font-size:22px}h2{color:#333;font-size:16px;margin:20px 0 8px}.sub{color:#666;font-size:13px;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#0041a3;color:#fff;padding:8px;text-align:left}td{padding:6px;border-bottom:1px solid #ddd}tr:nth-child(even){background:#f5f8fc}.sc{display:inline-block;background:#f0f4f8;border-radius:10px;padding:14px 20px;margin:0 10px 10px 0;text-align:center}.sc .n{font-size:24px;font-weight:bold;color:#0041a3}.sc .l{font-size:10px;color:#666}.ft{margin-top:30px;font-size:10px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:10px}</style></head><body><h1>Luconi — '+ml+'</h1><p class="sub">'+cn+' · '+fmtDS(new Date())+'</p>';
+    var h='<html><head><meta charset="utf-8"><title>Reporte '+ml+'</title><style>body{font-family:Arial,sans-serif;padding:40px;color:#222}h1{color:#0041a3;font-size:22px}h2{color:#333;font-size:16px;margin:20px 0 8px}.sub{color:#666;font-size:13px;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#0041a3;color:#fff;padding:8px;text-align:left}td{padding:6px;border-bottom:1px solid #ddd}tr:nth-child(even){background:#f5f8fc}.sc{display:inline-block;background:#f0f4f8;border-radius:10px;padding:14px 20px;margin:0 10px 10px 0;text-align:center}.sc .n{font-size:24px;font-weight:bold;color:#0041a3}.sc .l{font-size:10px;color:#666}.ft{margin-top:30px;font-size:10px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:10px}</style></head><body><h1>Luconi &mdash; '+ml+'</h1><p class="sub">'+cn+' &middot; '+fmtDS(new Date())+'</p>';
     if(e.length>0){
       h+='<h2>Resumen</h2>';
       for(var j=0;j<e.length;j++){
@@ -655,11 +683,11 @@ function App(){
 
   var filteredEmps = useMemo(function(){
     if(!bonoCo) return [];
-    var arr = employees.filter(function(e){return e.companyId===bonoCo;});
+    var arr=employees.filter(function(e){return e.companyId===bonoCo;});
     if(!bonoEmpSearch) return arr;
-    var q = bonoEmpSearch.toLowerCase();
+    var q=bonoEmpSearch.toLowerCase();
     return arr.filter(function(e){
-      return (e.name||"").toLowerCase().includes(q) || String(e.dni||"").includes(bonoEmpSearch);
+      return (e.name||"").toLowerCase().includes(q)||String(e.dni||"").includes(bonoEmpSearch);
     });
   }, [bonoCo, bonoEmpSearch, employees]);
 
@@ -667,7 +695,7 @@ function App(){
     return bonos.filter(function(b){return b.remainingBalance>0;});
   }, [bonos]);
 
-  var repE=rSumE(),repR=rData(),lastTx=transactions.slice().reverse().slice(0,8);
+  var repE=rSumE(),repR=rData(),lastTx=transactions.slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);}).slice(0,8);
   var otherUsers=users.filter(function(u){return u.role!=="dev";});
   var adminNav=[{key:"home",icon:"🏠",l:"Inicio"},{key:"register",icon:"🛒",l:"Registrar"},{key:"bonos",icon:"🎁",l:"Bonos"},{key:"companies",icon:"🏢",l:"Empresas"},{key:"employees",icon:"👥",l:"Personal"},{key:"reports",icon:"📊",l:"Reportes"},{key:"settings",icon:"⚙️",l:"Config"}];
   var recepNav=[{key:"home",icon:"🏠",l:"Inicio"},{key:"register",icon:"🛒",l:"Registrar"}];
@@ -681,7 +709,7 @@ function App(){
           <div style={{fontSize:48,marginBottom:12}}>🛒</div>
           <p style={{color:"#fff",fontSize:18}}>Conectando...</p>
           <p className="smallnote" style={{marginTop:8}}>
-            Modo: {window.__APP_MODE__ === "firestore" ? "☁️ Firestore" : "💾 Local"} (la app igual funciona)
+            Modo: {window.__APP_MODE__ === "firestore" ? "☁️ Firestore" : "💾 Local"}
           </p>
         </div>
       </div>
@@ -698,7 +726,7 @@ function App(){
             <h1 style={{fontSize:24,color:"#0041a3",fontWeight:700}}>Luconi</h1>
             <p style={{fontSize:13,color:"#888",marginTop:4}}>Sistema de Vouchers</p>
             <div style={{marginTop:10,fontSize:12,color:"#666"}}>
-              {window.__APP_MODE__ === "firestore" ? "☁️ Online (Firestore)" : "💾 Modo Local (localStorage)"}
+              {window.__APP_MODE__ === "firestore" ? "☁️ Online (Firestore)" : "💾 Modo Local"}
             </div>
           </div>
           <label style={LS}>Usuario</label>
@@ -707,9 +735,6 @@ function App(){
           <input type="password" placeholder="••••••" value={loginPass} onChange={function(e){setLoginPass(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")doLogin();}} style={{...IS,marginBottom:6}} />
           {loginError&&<p style={{color:"#e74c3c",fontSize:13,marginBottom:10,textAlign:"center"}}>{loginError}</p>}
           <button onClick={doLogin} style={{...BS("#0052cc","#fff"),width:"100%",padding:16,fontSize:16,marginTop:10}}>Ingresar</button>
-          <div style={{marginTop:12,fontSize:11,color:"#999",textAlign:"center"}}>
-            Default: admin/admin123 · recepcion/recep123 · developer/dev2024
-          </div>
         </div>
       </div>
     );
@@ -718,7 +743,6 @@ function App(){
   // ========= MAIN APP =========
   return(
     <div style={{minHeight:"100vh",paddingBottom:90}}>
-      {/* Header */}
       <div style={{background:"linear-gradient(135deg,#0041a3,#0052cc)",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
           <h1 style={{fontSize:18,color:"#fff",fontWeight:700}}>Luconi — Vouchers</h1>
@@ -825,9 +849,7 @@ function App(){
                             </label>
                           );
                         })}
-                        <div style={{fontSize:11,color:"#666",marginTop:8}}>
-                          *Tildá el/los bono(s) y firmá. No se ingresa monto.*
-                        </div>
+                        <div style={{fontSize:11,color:"#666",marginTop:8}}>*Tildá el/los bono(s) y firmá.*</div>
                       </div>
                     ) : (
                       <div style={{marginTop:10,fontSize:13,color:"#888",fontStyle:"italic"}}>Sin bonos</div>
@@ -840,9 +862,7 @@ function App(){
                         <button onClick={function(){setSelectedCaja("1");}} style={{...BS(selectedCaja==="1"?"#0052cc":"#e2e8f0",selectedCaja==="1"?"#fff":"#333"),flex:1,fontSize:18,padding:16}}>🔵 Caja 1</button>
                         <button onClick={function(){setSelectedCaja("2");}} style={{...BS(selectedCaja==="2"?"#0052cc":"#e2e8f0",selectedCaja==="2"?"#fff":"#333"),flex:1,fontSize:18,padding:16}}>🟢 Caja 2</button>
                       </div>
-                      <button onClick={function(){setShowSig(true);}} style={{...BS("#0052cc","#fff"),width:"100%",padding:16,fontSize:16}}>
-                        Continuar → Firma
-                      </button>
+                      <button onClick={function(){setShowSig(true);}} style={{...BS("#0052cc","#fff"),width:"100%",padding:16,fontSize:16}}>Continuar → Firma</button>
                     </div>
                   ) : (
                     <SignaturePad onSave={registerPurchase} onCancel={function(){setShowSig(false);}} />
@@ -857,8 +877,6 @@ function App(){
         {view==="bonos"&&isAdmin&&(
           <div>
             <h2 style={{fontSize:20,fontWeight:800,marginBottom:20}}>🎁 Gestión de Bonos</h2>
-
-            {/* Carga individual */}
             <div className="card" style={{background:"#fff",borderRadius:18,padding:24,border:"1px solid #e2e8f0",marginBottom:20}}>
               <h3 style={{fontSize:16,fontWeight:700,marginBottom:14}}>Cargar bono individual</h3>
               <label style={LS}>Empresa</label>
@@ -890,8 +908,6 @@ function App(){
                 </div>
               )}
             </div>
-
-            {/* Carga masiva */}
             <div className="card" style={{background:"#fff",borderRadius:18,padding:24,border:"1px solid #e2e8f0",marginBottom:20}}>
               <h3 style={{fontSize:16,fontWeight:700,marginBottom:14}}>Carga masiva (pegar texto)</h3>
               <label style={LS}>Empresa</label>
@@ -905,8 +921,6 @@ function App(){
               <textarea rows={5} placeholder={"Juan Pérez, 30123456, 50000, Bono mensual\nMaría López, 28654321, 30000"} value={bulkBonoText} onChange={function(e){setBulkBonoText(e.target.value);}} style={{...IS,resize:"vertical",marginBottom:14}} />
               <button onClick={addBulkBonos} style={{...BS("#27ae60","#fff"),width:"100%",padding:14}}>Cargar Bonos</button>
             </div>
-
-            {/* Importar CSV */}
             <div className="card" style={{background:"#fff",borderRadius:18,padding:24,border:"1px solid #e2e8f0",marginBottom:20}}>
               <h3 style={{fontSize:16,fontWeight:700,marginBottom:14}}>Importar desde CSV</h3>
               <label style={LS}>Empresa</label>
@@ -921,8 +935,6 @@ function App(){
                 <button onClick={shareEmail} style={{...BS("#333","#fff"),fontSize:12}}>📧 Email</button>
               </div>
             </div>
-
-            {/* Bonos activos */}
             <h3 style={{fontSize:15,fontWeight:700,color:"#0052cc",marginBottom:10}}>Bonos activos ({activeBonos.length})</h3>
             {activeBonos.length===0&&<p style={{color:"#999",textAlign:"center",padding:20}}>Sin bonos activos</p>}
             {activeBonos.map(function(b){
@@ -989,8 +1001,6 @@ function App(){
               <input placeholder="30123456" value={empForm.dni} onChange={function(e){setEmpForm(Object.assign({},empForm,{dni:e.target.value}));}} style={{...IS,marginBottom:14}} />
               <button onClick={addEmp} style={{...BS("#0052cc","#fff"),width:"100%",padding:14}}>Agregar</button>
             </div>
-
-            {/* Carga masiva */}
             <div className="card" style={{background:"#fff",borderRadius:18,padding:24,border:"1px solid #e2e8f0",marginBottom:20}}>
               <h3 style={{fontSize:16,fontWeight:700,marginBottom:14}}>Carga masiva</h3>
               <label style={LS}>Empresa</label>
@@ -1002,8 +1012,6 @@ function App(){
               <textarea rows={4} placeholder={"Juan Pérez, 30123456\nMaría López, 28654321"} value={bulkText} onChange={function(e){setBulkText(e.target.value);}} style={{...IS,resize:"vertical",marginBottom:14}} />
               <button onClick={addBulk} style={{...BS("#0052cc","#fff"),width:"100%",padding:14}}>Cargar</button>
             </div>
-
-            {/* Lista */}
             <h3 style={{fontSize:15,fontWeight:700,color:"#0052cc",marginBottom:10}}>Empleados ({employees.length})</h3>
             {employees.length===0&&<p style={{color:"#999",textAlign:"center",padding:20}}>Sin empleados</p>}
             {employees.map(function(e){
@@ -1039,13 +1047,11 @@ function App(){
                 </select>
               </div>
             </div>
-
             <h3 style={{fontSize:15,fontWeight:700,color:"#0052cc",marginBottom:10}}>{monthLabel(rMonth)}</h3>
             {repE.length===0&&<p style={{color:"#999",textAlign:"center",padding:20}}>Sin datos</p>}
             {repE.map(function(s,i){
               return <SummaryCard key={i} name={s.name} count={s.count} empCount={s.empCount} total={s.total} />;
             })}
-
             {repR.length>0&&(
               <div>
                 <h3 style={{fontSize:15,fontWeight:700,color:"#0052cc",margin:"20px 0 10px"}}>Detalle</h3>
@@ -1065,7 +1071,6 @@ function App(){
                 })}
               </div>
             )}
-
             <button onClick={exportPDF} style={{...BS("#0052cc","#fff"),width:"100%",padding:14,marginTop:20}}>🖨️ Exportar / Imprimir</button>
           </div>
         )}
@@ -1074,8 +1079,6 @@ function App(){
         {view==="settings"&&isAdmin&&(
           <div>
             <h2 style={{fontSize:20,fontWeight:800,marginBottom:20}}>⚙️ Configuración</h2>
-
-            {/* Cambiar mi contraseña */}
             <div className="card" style={{background:"#fff",borderRadius:18,padding:24,border:"1px solid #e2e8f0",marginBottom:20}}>
               <h3 style={{fontSize:16,fontWeight:700,marginBottom:14}}>🔐 Mi contraseña</h3>
               <label style={LS}>Actual</label>
@@ -1086,8 +1089,6 @@ function App(){
               <input type="password" value={myPwConf} onChange={function(e){setMyPwConf(e.target.value);}} style={{...IS,marginBottom:14}} />
               <button onClick={changeMyPw} style={{...BS("#0052cc","#fff"),width:"100%",padding:14}}>Cambiar</button>
             </div>
-
-            {/* Resetear contraseña de otro */}
             {isDev&&(
               <div className="card" style={{background:"#fff",borderRadius:18,padding:24,border:"1px solid #e2e8f0",marginBottom:20}}>
                 <h3 style={{fontSize:16,fontWeight:700,marginBottom:14}}>🔑 Reset contraseña (otro usuario)</h3>
@@ -1101,8 +1102,6 @@ function App(){
                 <button onClick={resetOtherPw} style={{...BS("#e67e22","#fff"),width:"100%",padding:14}}>Resetear</button>
               </div>
             )}
-
-            {/* Reset app */}
             {isDev&&(
               <div className="card" style={{background:"#fff",borderRadius:18,padding:24,border:"1px solid #fcc"}}>
                 <h3 style={{fontSize:16,fontWeight:700,marginBottom:14,color:"#e74c3c"}}>⚠️ Zona peligrosa</h3>
