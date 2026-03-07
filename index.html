@@ -450,7 +450,7 @@ function App(){
 
   var filteredEmps = useMemo(function(){ if(!bonoCo) return []; var arr=employees.filter(function(e){return e.companyId===bonoCo;}); if(!bonoEmpSearch) return arr; var q=bonoEmpSearch.toLowerCase(); return arr.filter(function(e){ return (e.name||"").toLowerCase().includes(q)||String(e.dni||"").includes(bonoEmpSearch); }); }, [bonoCo, bonoEmpSearch, employees]);
   var activeBonos=useMemo(function(){ return bonos.filter(function(b){return b.remainingBalance>0;}); }, [bonos]);
-  var repE=rSumE(),repR=rData(),lastTx=transactions.slice().reverse().slice(0,8);
+  var repE = rSumE(),     repR = rData(),     lastTx = transactions       .slice()       .sort(function(a, b){         return new Date(b.date || 0) - new Date(a.date || 0);       })       .slice(0, 8);
   var otherUsers=users.filter(function(u){return u.role!=="dev";});
   var adminNav=[{key:"home",icon:"🏠",l:"Inicio"},{key:"register",icon:"🛒",l:"Registrar"},{key:"bonos",icon:"🎁",l:"Bonos"},{key:"companies",icon:"🏢",l:"Empresas"},{key:"employees",icon:"👥",l:"Personal"},{key:"reports",icon:"📊",l:"Reportes"},{key:"settings",icon:"⚙️",l:"Config"}];
   var recepNav=[{key:"home",icon:"🏠",l:"Inicio"},{key:"register",icon:"🛒",l:"Registrar"}];
