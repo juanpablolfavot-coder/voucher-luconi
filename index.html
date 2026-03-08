@@ -80,7 +80,7 @@
   } catch (e1) { setLocalMode("firebase init error"); }
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js?v=20260307-1').catch(function(){});
+    navigator.serviceWorker.register('./sw.js?v=20260308-3').catch(function(){});
   }
 })();
 </script>
@@ -158,6 +158,24 @@ function todayStr(){ return localDateKey(new Date()); }
 function curMonth(){ return localMonthKey(new Date()); }
 function monthLabel(m){ var p=m.split("-"); var ms=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]; return ms[parseInt(p[1],10)-1]+" "+p[0]; }
 
+var MAX_TX_ITEMS = 300;
+
+function sortByDateDesc(list){
+  return (list || []).slice().sort(function(a, b){
+    return new Date((b && b.date) || 0) - new Date((a && a.date) || 0);
+  });
+}
+
+function stripTxSignature(tx){
+  if(!tx) return tx;
+  if(!tx.signature) return tx;
+  return Object.assign({}, tx, { signature: null });
+}
+
+function normalizeTxList(list){
+  return sortByDateDesc((list || []).map(stripTxSignature)).slice(0, MAX_TX_ITEMS);
+}
+
 var BS=function(bg,col){return{background:bg,color:col,border:"none",borderRadius:10,padding:"12px 20px",fontWeight:600,fontSize:14,cursor:"pointer",transition:"transform .08s ease"};};
 var IS={width:"100%",padding:"14px 16px",background:"#f0f4f8",border:"2px solid #dce3eb",borderRadius:12,color:"#1a1a2e",fontSize:15};
 var LS={display:"block",fontSize:12,fontWeight:700,color:"#5a6a7a",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5};
@@ -181,21 +199,51 @@ function useStore(collection, defVal) {
     if(mode !== "firestore" || !db){
       var initial = lsRead(collection, defVal);
       if(initial === defVal && Array.isArray(defVal) && defVal.length > 0){ lsWrite(collection, defVal); initial = defVal; }
+      if(collection === "transactions") initial = normalizeTxList(initial);
       setData(initial); setLoaded(true); return;
     }
     var unsub = db.collection(collection).doc("main").onSnapshot(function(doc){
-      if(doc.exists){ setData((doc.data() && doc.data().items) ? doc.data().items : defVal); }
-      else{ db.collection(collection).doc("main").set({ items: defVal }, { merge: true }).catch(function(e){ console.warn("seed fail -> fallback local", collection, e); window.__APP_MODE__ = "local"; var initial = lsRead(collection, defVal); setData(initial); }); setData(defVal); }
+      var next;
+      if(doc.exists){
+        next = (doc.data() && doc.data().items) ? doc.data().items : defVal;
+      } else {
+        db.collection(collection).doc("main").set({ items: defVal }, { merge: true }).catch(function(e){
+          console.warn("seed fail -> fallback local", collection, e);
+          window.__APP_MODE__ = "local";
+          var initial = lsRead(collection, defVal);
+          if(collection === "transactions") initial = normalizeTxList(initial);
+          setData(initial);
+        });
+        next = defVal;
+      }
+      if(collection === "transactions") next = normalizeTxList(next);
+      setData(next);
       setLoaded(true);
-    }, function(err){ console.warn("firestore snapshot err -> fallback local", collection, err); window.__APP_MODE__ = "local"; var initial = lsRead(collection, defVal); setData(initial); setLoaded(true); });
+    }, function(err){
+      console.warn("firestore snapshot err -> fallback local", collection, err);
+      window.__APP_MODE__ = "local";
+      var initial = lsRead(collection, defVal);
+      if(collection === "transactions") initial = normalizeTxList(initial);
+      setData(initial);
+      setLoaded(true);
+    });
     return function(){ try{unsub && unsub();}catch(e){} };
   }, [collection]);
   var save = useCallback(function(fn){
     setData(function(prev){
       var next = (typeof fn === "function") ? fn(prev) : fn;
+      if(collection === "transactions") next = normalizeTxList(next);
+
       var mode = window.__APP_MODE__; var db = window.__DB__;
-      if(mode === "firestore" && db){ db.collection(collection).doc("main").set({ items: next }, { merge: true }).catch(function(e){ console.warn("save fail -> fallback local", collection, e); window.__APP_MODE__ = "local"; lsWrite(collection, next); }); }
-      else { lsWrite(collection, next); }
+      if(mode === "firestore" && db){
+        db.collection(collection).doc("main").set({ items: next }, { merge: true }).catch(function(e){
+          console.warn("save fail -> fallback local", collection, e);
+          window.__APP_MODE__ = "local";
+          lsWrite(collection, next);
+        });
+      } else {
+        lsWrite(collection, next);
+      }
       return next;
     });
   }, [collection]);
@@ -425,75 +473,73 @@ function App(){
       var txRef = db.collection("transactions").doc("main");
 
       db.runTransaction(function(tr){
-        return Promise.all([
-          tr.get(bonosRef),
-          tr.get(txRef)
-        ]).then(function(res){
-          var bonosDoc = res[0];
-          var txDoc = res[1];
+        return tr.get(bonosRef).then(function(bonosDoc){
+          return tr.get(txRef).then(function(txDoc){
+            var bonosItems =
+              bonosDoc.exists && Array.isArray((bonosDoc.data() || {}).items)
+                ? (bonosDoc.data().items || []).slice()
+                : [];
 
-          var bonosItems =
-            bonosDoc.exists && Array.isArray((bonosDoc.data() || {}).items)
-              ? (bonosDoc.data().items || []).slice()
-              : [];
+            var txItems =
+              txDoc.exists && Array.isArray((txDoc.data() || {}).items)
+                ? (txDoc.data().items || []).slice()
+                : [];
 
-          var txItems =
-            txDoc.exists && Array.isArray((txDoc.data() || {}).items)
-              ? (txDoc.data().items || []).slice()
-              : [];
+            txItems = normalizeTxList(txItems);
 
-          var eb = bonosItems.filter(function(b){
-            return b && b.employeeId === currentFound.id && Number(b.remainingBalance) > 0;
+            var eb = bonosItems.filter(function(b){
+              return b && b.employeeId === currentFound.id && Number(b.remainingBalance) > 0;
+            });
+
+            var ub = currentSelectedBonos.length > 0
+              ? eb.filter(function(b){ return currentSelectedBonos.includes(b.id); })
+              : eb;
+
+            var bu = [];
+            var total = 0;
+
+            for(var i = 0; i < ub.length; i++){
+              var x = ub[i];
+              var idx = bonosItems.findIndex(function(b){ return b && b.id === x.id; });
+              if(idx === -1) continue;
+
+              var saldo = Number(bonosItems[idx].remainingBalance) || 0;
+              if(saldo <= 0) continue;
+
+              bonosItems[idx] = Object.assign({}, bonosItems[idx], {
+                remainingBalance: 0
+              });
+
+              bu.push({
+                bonoId: x.id,
+                amount: saldo,
+                label: x.label
+              });
+
+              total += saldo;
+            }
+
+            var tx = {
+              id: gid(),
+              employeeId: currentFound.id,
+              employeeName: currentFound.name,
+              employeeDni: currentFound.dni,
+              companyId: currentFound.companyId,
+              amount: total,
+              date: new Date().toISOString(),
+              signature: null,
+              bonosUsed: bu,
+              caja: currentCaja,
+              registeredBy: currentRegisteredBy
+            };
+
+            txItems = normalizeTxList(txItems.concat([tx]));
+
+            tr.set(bonosRef, { items: bonosItems }, { merge: true });
+            tr.set(txRef, { items: txItems }, { merge: true });
+
+            return tx;
           });
-
-          var ub = currentSelectedBonos.length > 0
-            ? eb.filter(function(b){ return currentSelectedBonos.includes(b.id); })
-            : eb;
-
-          var bu = [];
-          var total = 0;
-
-          for(var i = 0; i < ub.length; i++){
-            var x = ub[i];
-            var idx = bonosItems.findIndex(function(b){ return b && b.id === x.id; });
-            if(idx === -1) continue;
-
-            var saldo = Number(bonosItems[idx].remainingBalance) || 0;
-            if(saldo <= 0) continue;
-
-            bonosItems[idx] = Object.assign({}, bonosItems[idx], {
-              remainingBalance: 0
-            });
-
-            bu.push({
-              bonoId: x.id,
-              amount: saldo,
-              label: x.label
-            });
-
-            total += saldo;
-          }
-
-          var tx = {
-            id: gid(),
-            employeeId: currentFound.id,
-            employeeName: currentFound.name,
-            employeeDni: currentFound.dni,
-            companyId: currentFound.companyId,
-            amount: total,
-            date: new Date().toISOString(),
-            signature: sig,
-            bonosUsed: bu,
-            caja: currentCaja,
-            registeredBy: currentRegisteredBy
-          };
-
-          txItems.push(tx);
-
-          tr.set(bonosRef, { items: bonosItems }, { merge: true });
-          tr.set(txRef, { items: txItems }, { merge: true });
-
-          return tx;
         });
       }).then(function(tx){
         setLastTicket({
@@ -554,14 +600,14 @@ function App(){
       companyId: currentFound.companyId,
       amount: total,
       date: new Date().toISOString(),
-      signature: sig,
+      signature: null,
       bonosUsed: bu,
       caja: currentCaja,
       registeredBy: currentRegisteredBy
     };
 
     setTransactions(function(p){
-      return [...p, txLocal];
+      return normalizeTxList((p || []).concat([txLocal]));
     });
 
     setLastTicket({
@@ -592,9 +638,7 @@ function App(){
       });
     }
 
-    return f.sort(function(a, b){
-      return new Date(b.date || 0) - new Date(a.date || 0);
-    });
+    return sortByDateDesc(f);
   }
 
   function rSumE(){
@@ -618,12 +662,7 @@ function App(){
   var activeBonos=useMemo(function(){ return bonos.filter(function(b){return b.remainingBalance>0;}); }, [bonos]);
   var repE = rSumE(),
       repR = rData(),
-      lastTx = transactions
-        .slice()
-        .sort(function(a, b){
-          return new Date(b.date || 0) - new Date(a.date || 0);
-        })
-        .slice(0, 8);
+      lastTx = sortByDateDesc(transactions).slice(0, 8);
   var otherUsers=users.filter(function(u){return u.role!=="dev";});
   var adminNav=[{key:"home",icon:"🏠",l:"Inicio"},{key:"register",icon:"🛒",l:"Registrar"},{key:"bonos",icon:"🎁",l:"Bonos"},{key:"companies",icon:"🏢",l:"Empresas"},{key:"employees",icon:"👥",l:"Personal"},{key:"reports",icon:"📊",l:"Reportes"},{key:"settings",icon:"⚙️",l:"Config"}];
   var recepNav=[{key:"home",icon:"🏠",l:"Inicio"},{key:"register",icon:"🛒",l:"Registrar"}];
